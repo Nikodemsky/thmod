@@ -26,7 +26,6 @@ add_executable(th2
         src/serialize.cpp
         src/BaseItems.cpp
         src/BaseMonster.cpp
-        src/Localization.cpp
         src/UniqueItems.cpp
         src/Affixes.cpp
         src/UniqueMonsters.cpp
