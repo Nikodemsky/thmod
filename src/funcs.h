@@ -173,6 +173,9 @@ int Breath_Update( float now, int zoom, float anchorX, float anchorY, float wind
 void SharpScale_Release( int slot );//	dx_utility (th4) slot 0 = main device, 1 = second window; call wherever VideoSurface is released
 void __fastcall InitializeKeys( bool encrypt, char* key	);//	CodeSave		
 void __fastcall EncodeFile( uchar* data, uint sizeSrc, uint sizeDst, char* password	);//	CodeSave		
+// (thmod) missing from the v0.774 source release: size of an encoded save block =
+// data rounded up to whole SHA1 blocks + AppendRec trailer (same as Diablo codec_get_encoded_len)
+constexpr uint CalcEncodeDstBytes( uint sizeSrc ){ return (sizeSrc + SHA1_BLOCK_SIZE - 1) / SHA1_BLOCK_SIZE * SHA1_BLOCK_SIZE + (uint)sizeof(AppendRec); }
 void __fastcall DrawSpellIcon( int surfaceX, int surfaceY, char* iconCel, int iconIndex, int size, int spellType = 0	);//	Panel		
 void __fastcall DrawSpellColor( int spellType	);//	Panel		
 void  DrawSpellButton( );//	Panel		
