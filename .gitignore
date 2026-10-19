@@ -1,10 +1,22 @@
 Debug
 thehell2.vcxproj.user
 thehell2.vNext.vcxproj.user
-personal.props
+/personal.props
 .vs
 .idea
 cmake-build-*/
 Cheats/
 Release/
 /src/thehell3.rc
+
+# --- thmod: local build inputs (not redistributable / generated locally) ---
+lib/*.dll
+lib/*.DLL
+lib/*.sn2
+lib/oggvorbis/
+# MSVC leftovers
+*.aps
+*.VC.db
+*.VC.opendb
+ipch/
+x64/

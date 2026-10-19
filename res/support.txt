@@ -1,0 +1,7 @@
+Support
+
+The Hell 4 community and modding channel:
+discord.gg/AN9NukZFbN
+
+This build contains local modifications (thmod).
+Please do not report its bugs to the original authors.

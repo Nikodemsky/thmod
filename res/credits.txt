@@ -1,0 +1,10 @@
+Diablo: The Hell 4
+
+The Hell 4 mod
+Mordor and The Hell team
+
+Based on Diablo and Hellfire
+Blizzard North / Synergistic Software
+
+Local modifications
+thmod - github.com/Nikodemsky/thmod

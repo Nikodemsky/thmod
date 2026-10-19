@@ -78,7 +78,7 @@
       <ForcedIncludeFiles>
       </ForcedIncludeFiles>
       <ControlFlowGuard>false</ControlFlowGuard>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <ResourceCompile>
@@ -87,9 +87,9 @@
       <Culture>0x0419</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>dbghelp.lib;lib\storm.lib;lib\dxguid.lib;lib\ddraw.lib;d3d9.lib;Version.lib;odbc32.lib;odbccp32.lib;lib\smackw32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">dbghelp.lib;lib\storm.lib;lib\dxguid.lib;lib\ddraw.lib;d3d9.lib;Version.lib;odbc32.lib;odbccp32.lib;lib\smackw32.lib;lib\oggvorbis\libvorbisfile_static.lib;lib\oggvorbis\libvorbis_static.lib;lib\oggvorbis\libogg_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">dbghelp.lib;lib\storm.lib;lib\dxguid.lib;lib\ddraw.lib;d3d9.lib;Version.lib;odbc32.lib;odbccp32.lib;lib\smackw32.lib;lib\oggvorbis\libvorbisfile_static_debug.lib;lib\oggvorbis\libvorbis_static_debug.lib;lib\oggvorbis\libogg_static_debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dbghelp.lib;lib\storm.lib;dxguid.lib;ddraw.lib;d3d9.lib;Version.lib;odbc32.lib;odbccp32.lib;lib\smackw32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">dbghelp.lib;lib\storm.lib;dxguid.lib;ddraw.lib;d3d9.lib;Version.lib;odbc32.lib;odbccp32.lib;lib\smackw32.lib;lib\oggvorbis\libvorbisfile_static.lib;lib\oggvorbis\libvorbis_static.lib;lib\oggvorbis\libogg_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">dbghelp.lib;lib\storm.lib;dxguid.lib;ddraw.lib;d3d9.lib;Version.lib;odbc32.lib;odbccp32.lib;lib\smackw32.lib;lib\oggvorbis\libvorbisfile_static_debug.lib;lib\oggvorbis\libvorbis_static_debug.lib;lib\oggvorbis\libogg_static_debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <!-- (th4) silence LNK4099: the prebuilt vc110 ogg/vorbis libs ship without their PDBs. Harmless. -->
@@ -243,8 +243,12 @@
       <ForcedIncludeFiles>
       </ForcedIncludeFiles>
     </ClCompile>
-    <ClCompile Include="lib\pklib\explode.cpp" />
-    <ClCompile Include="lib\pklib\implode.cpp" />
+    <ClCompile Include="lib\pklib\explode.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="lib\pklib\implode.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="src\structs_sounds.cpp" />
     <ClCompile Include="src\structs_speech.cpp" />
     <ClCompile Include="src\TH1dll.cpp" />
