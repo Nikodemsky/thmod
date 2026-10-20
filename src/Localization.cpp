@@ -11171,9 +11171,16 @@ static const UiStr PerkDescStrings[] = {
 	{ "physical arrows ricochet::    off walls up to %i time(s)", "\xF4\xE8\xE7\xE8\xF7\xE5\xF1\xEA\xE8\xE5 \xF1\xF2\xF0\xE5\xEB\xFB \xF0\xE8\xEA\xEE\xF8\xE5\xF2\xFF\xF2::    \xEE\xF2 \xF1\xF2\xE5\xED \xE4\xEE %i \xF0\xE0\xE7" }, // (th4) Ricochet perk
 };
 const char* LocalizedPerkName( const char* en )
-{ return xlate( OVL_PERK_NAME, en ); }
+{
+	// (thmod) INQUISITOR'S FAVOUR: Acid Mastery adds to holy damage instead (Missile.cpp), so it is shown as Holy Mastery
+	if( en && InquisitorsFavour(CurrentPlayerIndex) && !strcmp(en, "Acid Mastery") ) return "Holy Mastery";
+	return xlate( OVL_PERK_NAME, en );
+}
 const char* LocalizedPerkDesc( const char* en )
-{ return xlate( OVL_PERK_DESC, en ); }
+{
+	if( en && InquisitorsFavour(CurrentPlayerIndex) && !strcmp(en, "acid spell damage::    gets increased by %i%%") ) return "holy spell damage::    gets increased by %i%%"; // (thmod)
+	return xlate( OVL_PERK_DESC, en );
+}
 
 // =============================================================================
 //  Speech / monologue translations (books, NPC gossip, quest text).

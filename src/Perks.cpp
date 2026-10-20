@@ -209,6 +209,7 @@ bool PerkAvailable( int playerIndex, int perkIndex, int perkLevel )
 											&& (!(player.gameChanger & BIT(GC_23_TOUGH_LUCK)))
 											&& (!(player.gameChanger & BIT(GC_27_TERMINATOR))); break;
 		case PERK_ACROBATICS:				available = !HasTrait(playerIndex, TraitId::BigFrame); break;
+		case PERK_ACID_BURN:				available = !InquisitorsFavour(playerIndex); break; // (thmod) INQUISITOR'S FAVOUR: no acid
 		case PERK_NIGHT_KIN:				available = player.gameChanger & BIT(GC_9_NIGHT_KIN) && HasTrait(playerIndex, TraitId::Barbarian); break; // mor: iow, this never happens (it's on purpose!)
 		case PERK_LEECH_LIFE:
 		case PERK_LEECH_MANA:
@@ -1251,14 +1252,16 @@ void PerksPanel_MouseMove()
 			if( CursorX >= buttonLeft && CursorX <= buttonLeft + 56 && CursorY >= buttonDown - 56 && CursorY <= buttonDown ){
 				Tooltip_Clear();
 				Tooltip_SetOffsetTop();
-				sprintf(InfoPanelBuffer, L("Trait: %s"), TraitAtlasToCP1251(GetTraitName(trait)) );
+				// (thmod) INQUISITOR'S FAVOUR: Dark Pact works on holy damage and is called Inquisitor's Seal
+				const bool inquisitorsSeal = trait == TraitId::DarkPact && InquisitorsFavour(CurrentPlayerIndex);
+				sprintf(InfoPanelBuffer, L("Trait: %s"), inquisitorsSeal ? "Inquisitor's Seal" : TraitAtlasToCP1251(GetTraitName(trait)) );
 				Tooltip_AddLine(InfoPanelBuffer, C_3_Gold);
 				// (th4) Benefit and penalty wrap at two thirds of the screen width -- a long
 				// penalty used to go out as one line and run off both edges. The name line
 				// above stays as it is. PADDING*2 is the box border, so the LINE limit is
 				// the box limit minus that.
 				const int wrapW = ScreenWidth * 2 / 3 - 12;
-				Tooltip_AddWrapped(TraitAtlasToCP1251(GetTraitBenefitDescription(trait)), C_1_Blue, wrapW);
+				Tooltip_AddWrapped(inquisitorsSeal ? "damage of holy spells increased by CLVL%" : TraitAtlasToCP1251(GetTraitBenefitDescription(trait)), C_1_Blue, wrapW);
 				Tooltip_AddWrapped(TraitAtlasToCP1251(GetTraitPenaltyDescription(trait)), C_2_Red, wrapW);
 			}
 			buttonLeft -= 56 + 8;

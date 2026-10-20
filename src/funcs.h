@@ -172,7 +172,12 @@ void Breath_NoteTowner( int townerIndex, int x, int y );//	Breath (th4) a towner
 int Breath_Update( float now, int zoom, float anchorX, float anchorY, float wind, float* puffs, int maxPuffs );//	Breath (th4) dx_utility.cpp Breath_Present: spawn / age the puffs, return them for Breath.hlsl
 void SharpScale_Release( int slot );//	dx_utility (th4) slot 0 = main device, 1 = second window; call wherever VideoSurface is released
 void __fastcall InitializeKeys( bool encrypt, char* key	);//	CodeSave		
-void __fastcall EncodeFile( uchar* data, uint sizeSrc, uint sizeDst, char* password	);//	CodeSave		
+void __fastcall EncodeFile( uchar* data, uint sizeSrc, uint sizeDst, char* password	);//	CodeSave
+// (thmod) INQUISITOR'S FAVOUR game changer (GameChangers.cpp)
+bool InquisitorsFavour( int playerIndex );
+bool IsSpellForbiddenByGC( int playerIndex, int spellIndex );
+__int64 GCForbiddenSpellMask( int playerIndex );
+bool WarlockSpellBan( int playerIndex, int spellIndex );		
 // (thmod) missing from the v0.774 source release: size of an encoded save block =
 // data rounded up to whole SHA1 blocks + AppendRec trailer (same as Diablo codec_get_encoded_len)
 constexpr uint CalcEncodeDstBytes( uint sizeSrc ){ return (sizeSrc + SHA1_BLOCK_SIZE - 1) / SHA1_BLOCK_SIZE * SHA1_BLOCK_SIZE + (uint)sizeof(AppendRec); }

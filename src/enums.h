@@ -8458,6 +8458,7 @@ enum GAME_CHANGER : uint
 	GC_27_TERMINATOR = 27,
 	GC_28_SUPERMUTANT = 28,
 	GC_29_ENCLAVE_SOLDIER = 29,
+	GC_30_INQUISITORS_FAVOUR = 30, // (thmod) Warlock + Hydramancer: acid element replaced by holy
 	GC_COUNT
 };
 
