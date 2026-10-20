@@ -92,7 +92,9 @@ const char* GC_Names_InfoWindow[GC_COUNT] = {
     /*GC_28*/
     "Super Mutant",
     /*GC_29*/
-    "Enclave Soldier"
+    "Enclave Soldier",
+    /*GC_30*/ // (thmod)
+    "Inquisitor's favour"
 };
 
 const char* GC_Descriptions_InfoWindow[GC_COUNT] = {
@@ -270,7 +272,13 @@ When you pull the trigger, the burst tears through hellspawn like paper in a sto
 Enclave Armed Forces soldier, trained to exterminate mutants and genetic impurity.\n\n\
 Finds himself stranded in a world that has never known nuclear fire, but has filth of a different kind - Hellspawn.\n\n\
 The enemy has changed. The purpose has not.\n\n\
-Abilities: Wields energy weapons and deploys combat drones. Adept at elemental warfare."
+Abilities: Wields energy weapons and deploys combat drones. Adept at elemental warfare.",
+
+/*GC_30*/ // (thmod)
+"Inquisitor's favour\n\n\n\
+Alters playstyle\n\n\
+Abandon the path of darkness entirely in favor of the righteous light. This removes the ability to use the acid element, replacing it with the holy element.\n\n\
+Acid spells are gone for good. Hydras cast Holy Bolt instead of acid, Acid Mastery becomes Holy Mastery, Acid Burn is removed and Dark Pact becomes Inquisitor's Seal (bonus to holy damage)."
 
 };
 
@@ -311,6 +319,7 @@ Portrait getGameChangerPortrait(GAME_CHANGER gameChanger)
     case GC_27_TERMINATOR:  portrait = PcxGcs[26]; break;
     case GC_28_SUPERMUTANT: portrait = PcxGcs[23]; break;
     case GC_29_ENCLAVE_SOLDIER: portrait = PcxGcs[24]; break;
+    case GC_30_INQUISITORS_FAVOUR: portrait = PcxGcs[12]; break; // (thmod) placeholder: Vaccinated's portrait until it gets its own
     default:                portrait = PcxGcs[50]; break;
 	}
     return portrait;
@@ -350,6 +359,7 @@ const char* getGameChangerDescription(const GAME_CHANGER gameChanger)
     case GC_27_TERMINATOR:  return LMenu("You are infiltration unit, model 101. Sent to the past to exterminate monsters. They are about to face evil beyond their comprehension...");
     case GC_28_SUPERMUTANT: return LMenu("You can haul weapons that would snap a normal man in half. Things that shouldn't exist in this world. Pull the trigger - the burst tears through everything.");
     case GC_29_ENCLAVE_SOLDIER: return LMenu("Enclave Armed Forces soldier, trained to exterminate mutants and genetic impurity. Finds himself stranded in a world that has never known nuclear fire.");
+    case GC_30_INQUISITORS_FAVOUR: return LMenu("Abandon the path of darkness entirely in favor of the righteous light. This removes the ability to use the acid element, replacing it with the holy element."); // (thmod)
     default:                return LMenu("wrong gc index");
     }
 }
@@ -394,6 +404,7 @@ const char* getGameChangerName(const GAME_CHANGER gameChanger)
     case GC_27_TERMINATOR:  sprintf(text, LMenu("Terminator: %s"), returnONorOFF(gameChanger)); break;
     case GC_28_SUPERMUTANT: sprintf(text, LMenu("Super Mutant: %s"), returnONorOFF(gameChanger)); break;
     case GC_29_ENCLAVE_SOLDIER: sprintf(text, LMenu("Enclave Soldier: %s"), returnONorOFF(gameChanger)); break;
+    case GC_30_INQUISITORS_FAVOUR: sprintf(text, LMenu("Inquisitor's favour: %s"), returnONorOFF(gameChanger)); break; // (thmod)
     default:                sprintf(text, LMenu("wrong gc index")); break;
 	}
     return text;
@@ -824,6 +835,14 @@ void __fastcall ResetGameChangerButtons(HWND hdlg, const int topIndex)
         //&& (NewSaveInfo.GameChanger & BIT(GC_9_NIGHT_KIN))// rem this!
         ) {
         GameChangersAvailableList.emplace_back(GC_29_ENCLAVE_SOLDIER);
+    }
+
+    // (thmod) INQUISITOR'S FAVOUR: Warlock with the Hydramancer trait only
+    if (NewSaveInfo.Class == PC_2_MAGE && NewSaveInfo.SubClass == PSC_MAGE_WARLOCK
+        && has(NewSaveInfo.Traits, TraitId::Hydramancer)
+        && (!is(NewSaveInfo.GameMode, GM_CLASSIC, GM_COLISEUM))
+        ) {
+        GameChangersAvailableList.emplace_back(GC_30_INQUISITORS_FAVOUR);
     }
     // ----- END OF DATA -----
 
@@ -1261,4 +1280,42 @@ int __stdcall DialogSelectGameChangers(HWND hdlg, unsigned int Msg, WPARAM wPara
     }
 
     return result;
+}
+
+// (thmod) INQUISITOR'S FAVOUR (GC_30) -----------------------------------------------------------
+// Warlock + Hydramancer only. The acid element is removed for good and holy takes its place:
+//   - every ET_4_ACID spell is forbidden: no starting Rancid Bolt (Holy Bolt instead), no spell levels,
+//     books / staves / relics of them are not generated for this player, cannot be used, and their
+//     charges / relic masks are filtered (IsSpellForbiddenByGC, GCForbiddenSpellMask)
+//   - the Warlock's ban on Holy Bolt / Holy Nova is lifted (WarlockSpellBan)
+//   - hydras fire Holy Bolt where they fired Rancid Bolt (Missile.cpp AttackCellByHydra)
+//   - Acid Burn perk unavailable, Acid Mastery adds to holy damage and shows as Holy Mastery,
+//     Dark Pact adds its CLVL% to holy damage and shows as Inquisitor's Seal
+bool InquisitorsFavour( int playerIndex )
+{
+	return (uint)playerIndex < PlayersMax_4 && (Players[playerIndex].gameChanger & BIT(GC_30_INQUISITORS_FAVOUR));
+}
+
+bool IsSpellForbiddenByGC( int playerIndex, int spellIndex )
+{
+	return spellIndex > 0 && spellIndex < PS_COUNT && Spells[spellIndex].Element == ET_4_ACID && InquisitorsFavour(playerIndex);
+}
+
+__int64 GCForbiddenSpellMask( int playerIndex )
+{
+	__int64 mask = 0;
+	if( InquisitorsFavour(playerIndex) ){
+		for( int spell = 1; spell < PS_COUNT; ++spell ){
+			if( Spells[spell].Element == ET_4_ACID ) mask |= 1i64 << (spell - 1);
+		}
+	}
+	return mask;
+}
+
+// the Warlock's own holy ban (lifted by Inquisitor's favour) plus the acid ban of Inquisitor's favour
+bool WarlockSpellBan( int playerIndex, int spellIndex )
+{
+	if( (uint)playerIndex >= PlayersMax_4 ) return false;
+	return Players[playerIndex].fullClassId == PFC_WARLOCK && is(spellIndex, PS_31_HOLY_BOLT, PS_39_HOLY_NOVA) && !InquisitorsFavour(playerIndex)
+		|| IsSpellForbiddenByGC(playerIndex, spellIndex);
 }

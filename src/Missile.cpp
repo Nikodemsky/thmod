@@ -420,7 +420,7 @@ int __fastcall GetDamageOfPlayerSpell(int playerIndex, int spellIndex, int spell
 		
 		// ---class specific traits -------
 		if (HasTrait(playerIndex, TraitId::DarkPact)) { // warlock trait
-			if (element == ET_4_ACID) {
+			if (element == (InquisitorsFavour(playerIndex) ? ET_5_HOLY : ET_4_ACID)) { // (thmod) Inquisitor's Seal: holy instead of acid
 				*pMinDamage += dark_pact_trait_benefit_min;
 				*pMaxDamage += dark_pact_trait_benefit_max;
 			}
@@ -474,6 +474,10 @@ int __fastcall GetDamageOfPlayerSpell(int playerIndex, int spellIndex, int spell
 		else if (element == ET_5_HOLY) {
 			*pMinDamage += damage_min_save * ( PerkValue(SYNERGY_SPELL_POWER, playerIndex) + PerkValue(PERK_CASTING_POWERS, playerIndex) + PerkValue(PERK_MIGHT_N_MAGIC, playerIndex, 1) + PerkValue(SYNERGY_ABJURATION, playerIndex, 1)) / 100;
 			*pMaxDamage += damage_max_save * ( PerkValue(SYNERGY_SPELL_POWER, playerIndex) + PerkValue(PERK_CASTING_POWERS, playerIndex) + PerkValue(PERK_MIGHT_N_MAGIC, playerIndex, 1) + PerkValue(SYNERGY_ABJURATION, playerIndex, 1)) / 100;
+			if (InquisitorsFavour(playerIndex)) { // (thmod) Acid Mastery works as Holy Mastery
+				*pMinDamage += damage_min_save * PerkValue(PERK_ACID_MASTERY, playerIndex) / 100;
+				*pMaxDamage += damage_max_save * PerkValue(PERK_ACID_MASTERY, playerIndex) / 100;
+			}
 		}
 		if (HasTrait(playerIndex, TraitId::GrimDeal)) {
 			damage_min_save -= (player.CharLevel / 3) * damage_min_save / 100;
@@ -574,6 +578,7 @@ int __fastcall PlayerSpellLevel(uint playerIndex, uint spellIndex, int spellOrig
 {
 	Player& player = Players[playerIndex];
 	int slvl = 0;
+	if( IsSpellForbiddenByGC(playerIndex, spellIndex) ) return 0; // (thmod) INQUISITOR'S FAVOUR: no acid spells, from any source
 	if( spellIndex < size(player.SpellLevels) ){
 		if( spellOrigin == -1 ) spellOrigin = player.SpellType;
 		if( spellIndex >= PS_47_NO_SPELL && spellIndex <= PS_51_EMPTY ){ // runes
@@ -1703,7 +1708,7 @@ int __fastcall PvM_Ranged( int playerIndex, int monsterIndex, int minDamage, int
 			}
 		}
 		else if (HasTrait(playerIndex, TraitId::DarkPact)){ // warlock trait
-			if (damageType == ET_4_ACID) {
+			if (damageType == (InquisitorsFavour(playerIndex) ? ET_5_HOLY : ET_4_ACID)) { // (thmod) Inquisitor's Seal: holy instead of acid
 				damage += damage_value * player.CharLevel / 100; // +CLVL% acid spell damage with Dark Pact trait
 			}
 		}
@@ -1734,6 +1739,9 @@ int __fastcall PvM_Ranged( int playerIndex, int monsterIndex, int minDamage, int
 		}
 		else if (damageType == ET_5_HOLY) {
 			damage += damage_value * (PerkValue(SYNERGY_SPELL_POWER, playerIndex) + PerkValue(PERK_CASTING_POWERS, playerIndex) + PerkValue(PERK_MIGHT_N_MAGIC, playerIndex, 1) + PerkValue(SYNERGY_ABJURATION, playerIndex, 1)) / 100;
+			if (InquisitorsFavour(playerIndex)) { // (thmod) Acid Mastery works as Holy Mastery
+				damage += damage_value * PerkValue(PERK_ACID_MASTERY, playerIndex) / 100;
+			}
 		}
 		if (HasTrait(playerIndex, TraitId::GrimDeal)) {
 			damage -= (player.CharLevel / 3) * damage / 100;
@@ -6605,8 +6613,11 @@ void __fastcall CastHolyBolt( int missileIndex, int casterRow, int casterCol, in
 	lastRow = casterRow;
 	lastCol = casterCol;
 	missile.LightIndex = AddLight(casterRow, casterCol, 8);
-	missile.Damage = GetDamageOfPlayerSpell(casterIndex, missile.spellIndex, missile.SpellLevel, BaseMissiles[missile.BaseMissileIndex].DamageType);
-	if( !CastingNovaInProgress ){
+	// (thmod) INQUISITOR'S FAVOUR: a Hydramancer hydra's holy bolt keeps the damage the hydra computed
+	// (hydra level, like its other bolts) and, like them, costs the player no mana
+	const bool hydraBolt = casterType == CT_0_PLAYER && missile.spellIndex == PS_13_HYDRA && HasTrait(casterIndex, TraitId::Hydramancer);
+	missile.Damage = hydraBolt ? damage : GetDamageOfPlayerSpell(casterIndex, missile.spellIndex, missile.SpellLevel, BaseMissiles[missile.BaseMissileIndex].DamageType);
+	if( !CastingNovaInProgress && !hydraBolt ){
 		MinusManaOrChargeOrRelicByPriceOfSSpell(casterIndex, PS_31_HOLY_BOLT);
 	}
 }
@@ -7003,6 +7014,20 @@ bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 				elem  = hydra.elem;
 				bolt  = hydra.missile;
 				spell = hydra.spell;
+				if( elem == ET_4_ACID && InquisitorsFavour(missile.CasterIndex) ){ // (thmod) INQUISITOR'S FAVOUR: Holy Bolt instead of acid
+					if( monster.BasePtr->MonsterClass == MON_0_UNDEAD ){
+						elem  = ET_5_HOLY;
+						bolt  = MI_53_HOLY_BOLT;
+						spell = PS_31_HOLY_BOLT;
+					}else{
+						// Holy Bolt is for the undead only: against anything else re-roll among the other elements
+						// (fire / lightning / arcane, the first three entries of Hydras[]) instead of wasting the shot
+						auto& other = Hydras[RNG(countof(Hydras) - 1)];
+						elem  = other.elem;
+						bolt  = other.missile;
+						spell = other.spell;
+					}
+				}
 				//Firing mana cost is turned off in CastFireBolt(), CastArcaneStar(), CastAcidMissile().  For Charged Bolt, it's automatically turned off.
 				if( PlayerSpellLevel(missile.CasterIndex, spell, SO_1_SPELL) <= 0 ) return false;
 			}

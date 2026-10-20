@@ -99,9 +99,12 @@ PLAYER_SPELL LearnedSpells(int page, int line)
 		else if (HasTrait(CurrentPlayerIndex, TraitId::Warlord)) spell = PS_52_LESSER_SUMMON;		
 		//else if (player.fullClassId == PFC_WARLOCK) spell = PS_13_HYDRA;
 		break;
-	case pos(4, 0): if( player.fullClassId == PFC_WARLOCK ) spell = PS_59_RANCID_BOLT; break;
-	case pos(4, 1): if( player.fullClassId == PFC_WARLOCK ) spell = PS_60_TOXIC_BALL; break;
-	case pos(4, 2): if( player.fullClassId == PFC_WARLOCK ) spell = PS_61_ACID_NOVA; break;
+	// (thmod) INQUISITOR'S FAVOUR: the Warlock's acid row holds his holy spells instead (moved, not doubled: page 4 drops them)
+	case pos(3, 0): if( InquisitorsFavour(CurrentPlayerIndex) ) spell = PS_M1_NONE; break;
+	case pos(3, 1): if( InquisitorsFavour(CurrentPlayerIndex) ) spell = PS_M1_NONE; break;
+	case pos(4, 0): if( player.fullClassId == PFC_WARLOCK ) spell = InquisitorsFavour(CurrentPlayerIndex) ? PS_31_HOLY_BOLT : PS_59_RANCID_BOLT; break;
+	case pos(4, 1): if( player.fullClassId == PFC_WARLOCK ) spell = InquisitorsFavour(CurrentPlayerIndex) ? PS_M1_NONE      : PS_60_TOXIC_BALL;  break;
+	case pos(4, 2): if( player.fullClassId == PFC_WARLOCK ) spell = InquisitorsFavour(CurrentPlayerIndex) ? PS_39_HOLY_NOVA : PS_61_ACID_NOVA;   break;
 	case pos(1, 6): if( player.fullClassId == PFC_ELEMENTALIST ) spell = PS_M1_NONE; break;
 	case pos(4, 3): if( player.fullClassId == PFC_ELEMENTALIST ) spell = PS_13_HYDRA; break;
 	}
@@ -1367,6 +1370,12 @@ void DrawSpellBook()
 					GetDamageOfPlayerSpell(CurrentPlayerIndex, spellIndex, PlayerSpellLevel(CurrentPlayerIndex, spellIndex), ET_4_ACID, &minDamage, &maxDamage);
 					sprintf(InfoPanelBuffer, L("Acid Damage: %i-%i"), minDamage, maxDamage);
 					drawLine(InfoPanelBuffer, C_5_Yellow);
+				}
+
+				if (InquisitorsFavour(CurrentPlayerIndex) && PlayerSpellLevel(CurrentPlayerIndex, PS_31_HOLY_BOLT) > 0) { // (thmod) hydras' holy bolts
+					GetDamageOfPlayerSpell(CurrentPlayerIndex, spellIndex, PlayerSpellLevel(CurrentPlayerIndex, spellIndex), ET_5_HOLY, &minDamage, &maxDamage);
+					sprintf(InfoPanelBuffer, L("Holy Damage: %i-%i"), minDamage, maxDamage);
+					drawLine(InfoPanelBuffer, C_3_Gold);
 				}
 			}
 			else {

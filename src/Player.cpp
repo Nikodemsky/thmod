@@ -2639,6 +2639,12 @@ void __fastcall CreatePlayer( int playerIndex, char classId, char subclassId, ch
 			player.SpellLevels[PS_31_HOLY_BOLT] = 1;
 		}
 	}
+	else if (player.fullClassId == PFC_WARLOCK && InquisitorsFavour(playerIndex)) { // (thmod) INQUISITOR'S FAVOUR: Holy Bolt instead of Rancid Bolt
+		player.AvailableSpellMask = BIT(PS_31_HOLY_BOLT) | BIT(PS_30_CHARGED_BOLT) | BIT(PS_1_FIREBOLT);
+		player.SpellLevels[PS_31_HOLY_BOLT] = 1;
+		player.SpellLevels[PS_30_CHARGED_BOLT] = 1;
+		player.SpellLevels[PS_1_FIREBOLT] = 1;
+	}
 	else if (player.fullClassId == PFC_WARLOCK) {
 		player.AvailableSpellMask = BIT(PS_59_RANCID_BOLT) | BIT(PS_30_CHARGED_BOLT) | BIT(PS_1_FIREBOLT); // 0x60000001;
 		player.SpellLevels[PS_59_RANCID_BOLT] = 1;
@@ -7586,7 +7592,8 @@ void LimitSpellLevels()
 	uint playerFullClassMask = (1u << static_cast<uint>( player.fullClassId ) );
 	for( int spellIndex = 1; spellIndex < PS_COUNT; ++spellIndex ){
 	    LimitToMax( player.SpellLevels[spellIndex], slvl_limit );
-	    if( !( Spells[spellIndex].RequiredClassMask & playerFullClassMask ) ){
+	    if( !( Spells[spellIndex].RequiredClassMask & playerFullClassMask )
+	     || IsSpellForbiddenByGC(CurrentPlayerIndex, spellIndex) ){ // (thmod) INQUISITOR'S FAVOUR: an acid book read anyway teaches nothing
 	        player.SpellLevels[spellIndex] = 0;
 	        player.AvailableSpellMask &= ~(1I64 << (spellIndex - 1));
         }

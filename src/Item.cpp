@@ -4865,7 +4865,7 @@ void __fastcall CalcCharParams(int playerIndex, int canLoadAnimFlag)
 
 
 LABEL_73:
-	player.AvailableChargesMask = staffSpellsSpeedbook;
+	player.AvailableChargesMask = staffSpellsSpeedbook & ~GCForbiddenSpellMask(playerIndex); // (thmod) INQUISITOR'S FAVOUR
 	if( player.SpellType == SO_3_EQUIPED_ITEM && !( player.AvailableChargesMask & (1i64 << (player.CurrentSpellIndex - 1))) ){
 		player.CurrentSpellIndex = -1;
 		player.SpellType = SO_4_NONE;
@@ -5781,6 +5781,7 @@ void __fastcall UpdateRelictsState(Player& player)
 				player.AvailableRelictMask |= BIT(item.SpellIndex);
 		}
 	}
+	player.AvailableRelictMask &= ~GCForbiddenSpellMask( int(&player - Players) ); // (thmod) INQUISITOR'S FAVOUR
 
 	if( player.SpellType == SO_2_RELIC ){
 		if( !(player.AvailableRelictMask & BIT(player.CurrentSpellIndex)) ){
@@ -5804,6 +5805,7 @@ void __fastcall SetAvailableChargesMask(int playerIndex)
 			&& item.CurCharges > 0)
 			player.AvailableChargesMask |= 1i64 << (item.SpellIndex - 1);
 	}
+	player.AvailableChargesMask &= ~GCForbiddenSpellMask(playerIndex); // (thmod) INQUISITOR'S FAVOUR
 }
 
 struct StatEffects
@@ -6073,6 +6075,7 @@ int __fastcall CheckItemReq(uint playerIndex, Item* item)
     	{
     		return false;
 		}
+		if( IsSpellForbiddenByGC(playerIndex, item->SpellIndex) ) return false; // (thmod) INQUISITOR'S FAVOUR: acid books / staves / relics unusable
 	}
 
 	bool is_sigil = (item->baseItemIndex >= BI_2504_SIGIL_FIRST && item->baseItemIndex <= BI_2508_SIGIL_LAST);
@@ -6808,7 +6811,7 @@ bool BookSpellSkip(int spellIndex, int playerIndex)// #book availability, #book 
 	return IsSpellBannedInDarkCampaign(spellIndex)		// (th4) Dark Campaign ban list
 		|| spellIndex == PS_7_TOWN_PORTAL && isTownPortalForbidden()
 		|| is(spellIndex, PS_32_BONE_SPIRIT_REAL_RESSURECT, PS_34_HEAL_OTHER) && MaxCountOfPlayersInGame == 1
-		|| player.fullClassId == PFC_WARLOCK && is(spellIndex, PS_31_HOLY_BOLT, PS_39_HOLY_NOVA)
+		|| WarlockSpellBan(playerIndex, spellIndex) // (thmod) holy ban, lifted by Inquisitor's favour, which bans acid instead
 		|| (GameMode == GM_COLISEUM && (is(spellIndex, PS_32_BONE_SPIRIT_REAL_RESSURECT, PS_2_HEALING, PS_7_TOWN_PORTAL, PS_13_HYDRA, PS_15_FORCE_WAVE, 
 			PS_21_GOLEM, PS_42_WARP, PS_9_INFRAVISION, PS_5_IDENTIFY, PS_31_HOLY_BOLT, PS_33_TELEKINES, PS_39_HOLY_NOVA, PS_8_STONE_CURSE, PS_16_REFLECT, 
 			PS_24_APOCALYPSE, PS_28_TRAP_DISARM, PS_37_MANA_RECHARGE, PS_38_MAGI, PS_34_HEAL_OTHER)))
@@ -6996,6 +6999,7 @@ void __fastcall Item_AddSpellCastAbility(Item& item, int maxAffixQLVL, int isMag
 			int itemQLVL = Spells[curSpell_ID].ItemQuality;
 			if (itemQLVL != -1 && itemQLVL <= maxSpellQlvl
 				&& Spells[curSpell_ID].RequiredClassMask & playerFullClassMask /*& baseItem.RequiredClassMask*/ //replacing baseitem mask with player mask for more precise spell req
+				&& !IsSpellForbiddenByGC(CurrentPlayerIndex, curSpell_ID) // (thmod) INQUISITOR'S FAVOUR: no acid staves
 				&& (not(curSpell_ID, PS_32_BONE_SPIRIT_REAL_RESSURECT, PS_15_FORCE_WAVE, PS_21_GOLEM, PS_42_WARP, PS_9_INFRAVISION, PS_5_IDENTIFY, PS_17_LIGHTING_RING, PS_18_LIGHTNING_NOVA,
 					PS_33_TELEKINES, PS_39_HOLY_NOVA, PS_16_REFLECT, PS_28_TRAP_DISARM, PS_37_MANA_RECHARGE, PS_38_MAGI, PS_34_HEAL_OTHER, PS_14_BALL_LIGHTNING, PS_19_FLAME_RING,
 					PS_22_FURY, PS_41_FIERY_NOVA, PS_43_ARCANE_NOVA))
@@ -7012,6 +7016,7 @@ void __fastcall Item_AddSpellCastAbility(Item& item, int maxAffixQLVL, int isMag
 			int itemQLVL = Spells[curSpell_ID].ItemQuality;
 			if (itemQLVL != -1 && itemQLVL <= maxSpellQlvl
 				&& Spells[curSpell_ID].RequiredClassMask & playerFullClassMask /*& baseItem.RequiredClassMask*/ //replacing baseitem mask with player mask for more precise spell req
+				&& !IsSpellForbiddenByGC(CurrentPlayerIndex, curSpell_ID) // (thmod) INQUISITOR'S FAVOUR: no acid staves
 				&& (not(curSpell_ID, PS_32_BONE_SPIRIT_REAL_RESSURECT, PS_2_HEALING, PS_7_TOWN_PORTAL, PS_13_HYDRA, PS_15_FORCE_WAVE, PS_21_GOLEM, PS_42_WARP, PS_9_INFRAVISION, PS_5_IDENTIFY,
 					PS_31_HOLY_BOLT, PS_33_TELEKINES, PS_39_HOLY_NOVA, PS_8_STONE_CURSE, PS_16_REFLECT, PS_24_APOCALYPSE, PS_28_TRAP_DISARM, PS_37_MANA_RECHARGE, PS_38_MAGI, PS_34_HEAL_OTHER))
 				) {
@@ -7027,10 +7032,11 @@ void __fastcall Item_AddSpellCastAbility(Item& item, int maxAffixQLVL, int isMag
 			int itemQLVL = Spells[curSpell_ID].ItemQuality;
 			if (itemQLVL != -1 && itemQLVL <= maxSpellQlvl
 				&& Spells[curSpell_ID].RequiredClassMask & playerFullClassMask /*& baseItem.RequiredClassMask*/ //replacing baseitem mask with player mask for more precise spell req
+				&& !IsSpellForbiddenByGC(CurrentPlayerIndex, curSpell_ID) // (thmod) INQUISITOR'S FAVOUR: no acid staves
 				&& (is(GameMode, GM_IRONMAN, GM_SURVIVAL, GM_NIGHTMARE, GM_SPEEDRUN, GM_OUTBREAK) ? curSpell_ID != PS_7_TOWN_PORTAL : true) //removing townportal generation on certain game modes
 				&& !IsSpellBannedInDarkCampaign(curSpell_ID) // (th4) Dark Campaign ban list
 				// (th4) Warlocks are barred from holy magic, as they already are for books (BookSpellSkip)
-				&& !(player.fullClassId == PFC_WARLOCK && is(curSpell_ID, PS_31_HOLY_BOLT, PS_39_HOLY_NOVA))
+				&& !WarlockSpellBan(CurrentPlayerIndex, curSpell_ID) // (thmod) holy ban lifted / acid banned by Inquisitor's favour
 				// (rt) the spell on the item can morph between SP and MP here, since the list of available spells differs
 				&& (MaxCountOfPlayersInGame > 1 || not(curSpell_ID, PS_32_BONE_SPIRIT_REAL_RESSURECT, PS_34_HEAL_OTHER))				
 				) {
@@ -9458,7 +9464,7 @@ int __fastcall GetRandomBaseForMonsterDrop( int monsterIndex ) // drop from mons
 				else if (is(fullClassId, PFC_MAGE, PFC_ELEMENTALIST, PFC_WARLOCK, PFC_DEMONOLOGIST, PFC_NECROMANCER, PFC_BEASTMASTER) && (spell == PS_27_STAFF_RECHARGE)) {
 					// Item Recharge relicts Forbidden if it's available as class skill
 				}
-				else if (fullClassId == PFC_WARLOCK && (spell == PS_31_HOLY_BOLT || spell == PS_39_HOLY_NOVA)) {
+				else if (WarlockSpellBan(CurrentPlayerIndex, spell)) { // (thmod) holy ban lifted / acid banned by Inquisitor's favour
 					// Warlock doesn't have access to Holy Bolt and Holy Nova books drops
 				}
 				else if ((Dungeon >= DUN_60_HAUNTED_LABYRINTH && Dungeon <= DUN_108_ARCANE_PRISON) && (spell == PS_42_WARP)) {
@@ -9893,7 +9899,7 @@ int __fastcall GetRandomBaseForHiQualityObjectAndBossDrop( int monsterIndex )
 			else if ( HasTrait(CurrentPlayerIndex, TraitId::Paladin) && spell == PS_36_BONE_SPIRIT ) {
 				// Paladin doesn't have Bone Spirit book drops
 			}
-			else if (fullClassId == PFC_WARLOCK && (spell == PS_31_HOLY_BOLT || spell == PS_39_HOLY_NOVA)) {
+			else if (WarlockSpellBan(CurrentPlayerIndex, spell)) { // (thmod) holy ban lifted / acid banned by Inquisitor's favour
 				// Warlock doesn't have access to Holy Bolt and Holy Nova books drops
 			}
 			//else if (Players[CurrentPlayerIndex].gameChanger & BIT(GC_27_TERMINATOR) && spell != PS_7_TOWN_PORTAL) {
