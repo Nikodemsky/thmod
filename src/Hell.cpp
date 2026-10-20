@@ -1126,9 +1126,35 @@ Portrait getHeroPortrait( CharSaveInfo* saveInfo, CLASS_SELECTION_MODE mode /*= 
     return portrait;
 }
 
+// (thmod) MOUSE WHEEL IN ALL META MENUS. The (th4) fix in SelectionButtonProc only covers the plain
+// selection buttons (main menu, class list...). The other lists -- game modes, traits, game changers,
+// hero saves, providers, IPX / modem games -- subclass their buttons with their own procs, and the
+// wheel over the dialog background goes to the dialog proc, so there it did nothing. All of those
+// end in one of the three wrappers below, which are used by the meta menus only, so the wheel is
+// turned into the VK_UP / VK_DOWN every list already handles, for the focused control.
+// The key is POSTED, not sent: the lists with their own button procs (heroes, game modes, traits...) read
+// WM_KEYDOWN in the proc, but the plain SelectionButtonProc lists (main menu, Load / New Game...) have no arrow
+// code at all -- there the dialog manager in the modal message loop moves the focus, so the key has to go
+// through the queue exactly like a real key press. A sent WM_KEYDOWN never reaches it.
+// Notches are accumulated, so high-resolution / smooth wheels step once per WHEEL_DELTA, not per message.
+static bool MenuWheelToArrows( HWND hWnd, unsigned int msg, WPARAM wParam )
+{
+	if( msg != WM_MOUSEWHEEL ) return false;
+	static int accumulated = 0;
+	const int delta = (short)HIWORD( wParam );
+	if( (delta > 0 && accumulated < 0) || (delta < 0 && accumulated > 0) ) accumulated = 0; // direction changed
+	accumulated += delta;
+	HWND focus = GetFocus();
+	if( ! focus ) focus = hWnd;
+	while( accumulated >= WHEEL_DELTA ){ accumulated -= WHEEL_DELTA; PostMessageA( focus, WM_KEYDOWN, VK_UP, 1 ); }
+	while( accumulated <= -WHEEL_DELTA ){ accumulated += WHEEL_DELTA; PostMessageA( focus, WM_KEYDOWN, VK_DOWN, 1 ); }
+	return true;
+}
+
 // th2 --------------------------------------------------------------------
 int __stdcall SDlgDefDialogProc_( HWND hDlg, unsigned int msg, WPARAM wParam, LPARAM lParam )
 {
+	if( MenuWheelToArrows( hDlg, msg, wParam ) ) return 0; // (thmod)
 	if( msg == WM_KEYUP && wParam == VK_SNAPSHOT ){
 		DoMenuScreenShot = 1;
 		return 0;
@@ -1140,6 +1166,7 @@ int __stdcall SDlgDefDialogProc_( HWND hDlg, unsigned int msg, WPARAM wParam, LP
 // th2 --------------------------------------------------------------------
 int __stdcall CallWindowProcA_( WNDPROC lpPrevWndFunc, HWND hDlg, unsigned int msg, WPARAM wParam, LPARAM lParam )
 {
+	if( MenuWheelToArrows( hDlg, msg, wParam ) ) return 0; // (thmod)
 	if( msg == WM_KEYUP && wParam == VK_SNAPSHOT ){
 		DoMenuScreenShot = 1;
 		return 0;
@@ -1151,6 +1178,7 @@ int __stdcall CallWindowProcA_( WNDPROC lpPrevWndFunc, HWND hDlg, unsigned int m
 // th2 --------------------------------------------------------------------
 int __stdcall DefWindowProcA_( HWND hDlg, unsigned int msg, WPARAM wParam, LPARAM lParam )
 {
+	if( MenuWheelToArrows( hDlg, msg, wParam ) ) return 0; // (thmod)
 	if( msg == WM_KEYUP && wParam == VK_SNAPSHOT ){
 		DoMenuScreenShot = 1;
 		return 0;
@@ -5754,15 +5782,7 @@ LRESULT __stdcall SelectionButtonProc( HWND hWnd, UINT Msg, WPARAM wParam, LPARA
 	// already wraps every selectable button, so one arm here covers all of them:
 	// turn a wheel notch into the arrow key the list is already listening for, and
 	// send it to the FOCUSED control rather than whatever the pointer is over.
-	if( Msg == WM_MOUSEWHEEL ){
-		const short wheel = (short)HIWORD( wParam );
-		if( wheel != 0 ){
-			HWND focus = GetFocus();
-			if( !focus ) focus = hWnd;
-			SendMessageA( focus, WM_KEYDOWN, ( wheel > 0 ) ? VK_UP : VK_DOWN, 0 );
-		}
-		return 0;
-	}
+	if( MenuWheelToArrows( hWnd, Msg, wParam ) ) return 0; // (thmod) same handling as every other meta list, with notch accumulation
 
 	uiWndProc = (LRESULT( __stdcall * )(HWND, UINT, WPARAM, LPARAM))GetPropA( hWnd, "UIWNDPROC" );
 	if( Msg == WM_DESTROY ){
