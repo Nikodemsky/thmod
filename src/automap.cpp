@@ -29,6 +29,167 @@ int AutomapRotated;
 // used with MapBlend, and the software Bresenham into the 8-bit frame), so the shadow keeps the
 // map's transparency. Players, monsters and items on the map are not shadowed.
 bool AutomapShadowPass = false;
+
+// (thmod) STAIR LABELS (config StairLabels, local only -- nothing here is synced or saved): a small
+// white glyph is drawn just right of each staircase on the automap / minimap, telling where it leads:
+//   arrow up = previous level, arrow down = next level (and town doors into dungeons),
+//   T = town, Q = quest dungeon entrance, E = exit from a quest dungeon.
+// The kind comes from the level's Warps list, not from the stairs drawing. Each warp is matched to the
+// right-most stairs cell (LevelAutomapData BIT(16)) within 2 automap cells of it, so the label sits next to
+// the whole staircase; warps without stairs art (portals, town doors) are labelled at their own cell.
+// Glyphs are drawn with AutomapDrawLine, so they scale with the zoom and get the AUTOMAP SHADOW pass
+// and the MapBlend transparency like every other map line.
+// Quest dungeon entrances that are not warps (Quests[].row/col, entered by stepping on them, e.g. the
+// Church Sacristy door) get the Q too, and their door / doorway square is drawn in orange (QUEST ENTRY COLOR).
+enum STAIR_LABEL: char { SL_NONE, SL_UP, SL_DOWN, SL_TOWN, SL_QUEST, SL_EXIT };
+static char StairLabelAt[ Map_40 ][ Map_40 ];
+static bool QuestEntryAt[ Map_40 ][ Map_40 ];  // cells whose map lines are drawn in QuestEntryColor
+const uchar QuestEntryColor = 211;             // orange of C_4_Orange text ("Seeing: N"): 208-221; 209 = its brightest, too close to the yellow doors
+static uchar AutomapColorOverride = 0;         // 0 = normal colours in AutomapDrawStaticObject
+struct StairLabelPos { int x, y; char kind; int cellX, cellY; ushort flags; bool square; };
+static StairLabelPos StairLabelQueue[ 64 ];
+static int StairLabelCount = 0;
+
+static char StairLabelKind( const Warp& warp )
+{
+	if( warp.destDungeon == DUN_0_TOWN || warp.GameMessage == WM_1032_RETURN_TO_TOWN ) return SL_TOWN;
+	switch( warp.GameMessage ){
+	case WM_1026_NEXT_DUNGEON:
+	case WM_1031_GOTO_DUNGEON:              return SL_DOWN;
+	case WM_1027_PREV_DUNGEON:              return SL_UP;
+	case WM_1028_RETURN_FROM_QUEST_DUNGEON: return SL_EXIT;
+	case WM_1029_GOTO_QUEST_DUNGEON:        return SL_QUEST;
+	default:                                return SL_NONE;
+	}
+}
+
+// nearest door / doorway / pillar square within 1 cell of (row0, col0); false if there is none
+static bool FindEntrySquare( int row0, int col0, int& outRow, int& outCol )
+{
+	int bestDist = 99;
+	for( int dr = -1; dr <= 1; ++dr ) for( int dc = -1; dc <= 1; ++dc ){
+		int row = row0 + dr, col = col0 + dc;
+		if( ! In40(row, col) ) continue;
+		ushort flags = GetStaticObjectFlags(row, col, 0);
+		bool isSquare = (flags & (BIT(9)|BIT(10)|BIT(11)|BIT(12))) || (flags & 0xF) == 1;
+		int dist = abs(dr) + abs(dc);
+		if( isSquare && dist < bestDist ){ bestDist = dist; outRow = row; outCol = col; }
+	}
+	return bestDist != 99;
+}
+
+static void StairLabels_Build()
+{
+	memset( StairLabelAt, 0, sizeof StairLabelAt );
+	memset( QuestEntryAt, 0, sizeof QuestEntryAt );
+	StairLabelCount = 0;
+	if( ! StairLabels ) return;
+	for( const Warp& warp: Warps ){
+		char kind = StairLabelKind( warp );
+		if( kind == SL_NONE ) continue;
+		int row0 = (warp.Row - MapDirty_16) >> 1;
+		int col0 = (warp.Col - MapDirty_16) >> 1;
+		int bestRow = row0, bestCol = col0, bestScore = -1000000;
+		for( int dr = -2; dr <= 2; ++dr ) for( int dc = -2; dc <= 2; ++dc ){
+			int row = row0 + dr, col = col0 + dc;
+			if( ! In40(row, col) || ! (GetStaticObjectFlags(row, col, 0) & BIT(16)) ) continue;
+			// screen x grows with (row - col): prefer the right-most stairs cell, then the upper one
+			int score = (row - col) * 64 - (row + col);
+			if( score > bestScore ){ bestScore = score; bestRow = row; bestCol = col; }
+		}
+		// a quest entrance warp without stairs art: colour its door / doorway square instead
+		if( kind == SL_QUEST && bestScore == -1000000 && FindEntrySquare(row0, col0, bestRow, bestCol) ){
+			QuestEntryAt[ bestRow ][ bestCol ] = true;
+		}
+		if( In40(bestRow, bestCol) ) StairLabelAt[ bestRow ][ bestCol ] = kind;
+	}
+	// quest dungeon entrances that live in Quests[], not in Warps (same conditions as the "To ..." hover text,
+	// ShowDungeonEntryDescriptionsFromQuestLocEntries in Quests.cpp)
+	for( int questIndex = 0; questIndex < Quest_Count; ++questIndex ){
+		const Quest& quest = Quests[ questIndex ];
+		if( quest.dungeonStart != Dungeon || quest.questDungeon == DUN_NO || quest.status == QS_0_NO ) continue;
+		if( questIndex == Q_15_ARCHBISHOP_LAZARUS && quest.status2 < LQS_3_MAKE_PORTAL_TO_UNHOLY_ALTAR ) continue;
+		if( questIndex == Q_9_VALOR && ! IsValorVaultOpen() ) continue;
+		int row0 = (quest.row - MapDirty_16) >> 1;
+		int col0 = (quest.col - MapDirty_16) >> 1;
+		// the entrance is usually a door / doorway square right at the spot; take the nearest such cell
+		int bestRow = row0, bestCol = col0;
+		bool square = FindEntrySquare(row0, col0, bestRow, bestCol);
+		if( ! In40(bestRow, bestCol) ) continue;
+		if( square ) QuestEntryAt[ bestRow ][ bestCol ] = true;
+		StairLabelAt[ bestRow ][ bestCol ] = SL_QUEST;
+	}
+}
+
+static void StairLabels_Queue( int mapX, int mapY, int x, int y )
+{
+	if( ! In40(mapX, mapY) ) return;
+	char kind = StairLabelAt[ mapX ][ mapY ];
+	if( kind == SL_NONE || StairLabelCount >= (int)countof(StairLabelQueue) ) return;
+	if( IsNotMapOpen && ! AutoMap[ mapX ][ mapY ] ) return; // not explored yet
+	// anchor = right edge and vertical centre of what AutomapDrawStaticObject draws in this cell
+	ushort flags = GetStaticObjectFlags(mapX, mapY, 0);
+	int rightX, centerY;
+	if( flags & BIT(16) ){                                  // stairs icon
+		rightX = x + AutomapZoom8 + AutomapZoom4; centerY = y + 1;
+	}else if( flags & BIT(10) ){                            // door on the main diagonal (square x .. x+16)
+		rightX = x + AutomapZoom16;                centerY = y - AutomapZoom4;
+	}else if( flags & BIT(9) ){                             // door on the secondary diagonal (square x-16 .. x)
+		rightX = x;                                centerY = y - AutomapZoom4;
+	}else{                                                  // doorway / pillar square or anything else (x-8 .. x+8)
+		rightX = x + AutomapZoom8;                 centerY = y - AutomapZoom4;
+	}
+	StairLabelQueue[ StairLabelCount++ ] = { rightX, centerY, kind, x, y, flags, QuestEntryAt[ mapX ][ mapY ] };
+}
+
+// glyph polylines on a 60 x 100 grid (width 0.6 of the height), {-1,-1} ends a stroke
+static const short StairGlyph[][32] = {
+	/* SL_NONE  */ { -1 },
+	/* SL_UP    */ { 30,0, 30,100, -1,-1,  0,35, 30,0, 60,35, -1 },
+	/* SL_DOWN  */ { 30,0, 30,100, -1,-1,  0,65, 30,100, 60,65, -1 },
+	/* SL_TOWN  */ { 0,0, 60,0, -1,-1,  30,0, 30,100, -1 },
+	/* SL_QUEST */ { 15,0, 45,0, 60,20, 60,80, 45,100, 15,100, 0,80, 0,20, 15,0, -1,-1,  35,70, 65,105, -1 },
+	/* SL_EXIT  */ { 60,0, 0,0, 0,100, 60,100, -1,-1,  0,50, 45,50, -1 },
+};
+
+static void StairLabels_Draw()
+{
+	// palette 240 = (243,243,243) in every level palette; NOT 255 -- palette.cpp forces entry 255 to (5,5,5) at runtime
+	const uchar white = 240;
+	int iconW = AutomapZoom16 + AutomapZoom8 + AutomapZoom4;   // width of the 4-line stairs icon
+	int h = max( 6, (iconW * 3 + 5) / 10 );                    // ~30% of it, never below a readable 6 px
+	for( int n = 0; n < StairLabelCount; ++n ){
+		const StairLabelPos& p = StairLabelQueue[ n ];
+		if( p.square ){
+			// QUEST ENTRY COLOR: redraw the entrance square in orange on top of everything drawn in this pass,
+			// so it wins even where a neighbouring cell draws the same square in the normal colour
+			int x = p.cellX, y = p.cellY, z8 = AutomapZoom8, z4 = AutomapZoom4;
+			int cx;                                                           // centre x of the square
+			if( p.flags & (BIT(10)|BIT(14)) )      cx = x + z8;               // door on the main diagonal
+			else if( p.flags & (BIT(9)|BIT(13)) )  cx = x - z8;               // door on the secondary diagonal
+			else                                   cx = x;                    // doorway / pillar square
+			AutomapDrawLine( cx, y - z8, cx - z8, y - z4, QuestEntryColor );
+			AutomapDrawLine( cx, y - z8, cx + z8, y - z4, QuestEntryColor );
+			AutomapDrawLine( cx, y,      cx - z8, y - z4, QuestEntryColor );
+			AutomapDrawLine( cx, y,      cx + z8, y - z4, QuestEntryColor );
+		}
+		int lx = p.x + max( 3, AutomapZoom4 ); // just right of the icon
+		int ty = p.y - h / 2;                  // centred on it
+		const short* g = StairGlyph[ p.kind ];
+		bool pen = false;
+		int px = 0, py = 0;
+		for( int i = 0; i + 1 < (int)countof(StairGlyph[0]); ){
+			if( g[ i ] == -1 ){
+				if( g[ i + 1 ] != -1 ) break;    // {-1}: end of glyph
+				pen = false; i += 2; continue;   // {-1,-1}: end of stroke
+			}
+			int x = lx + (g[ i ] * h + 50) / 100;
+			int y = ty + (g[ i + 1 ] * h + 50) / 100;
+			if( pen ) AutomapDrawLine( px, py, x, y, white );
+			px = x; py = y; pen = true; i += 2;
+		}
+	}
+}
 uchar AutomapCurrentDrawColor;
 int Xofs, Yofs; // Player center on screen buf ( x + Screen_LeftBorder, y + ScreenTopEnd ) 
 
@@ -351,11 +512,13 @@ void DrawAutoMap()
 			mapRowOnPlayer = 20 - automapZoomOffset;
 			mapColOnPlayer = 20 - 1;
 		}
+		StairLabels_Build(); // (thmod) STAIR LABELS
 		// AUTOMAP SHADOW: pass 0 draws the black shifted copy, pass 1 the map itself
 		const int shadowRow0 = mapRowOnPlayer, shadowCol0 = mapColOnPlayer, shadowY0 = yCenter;
 		for( int pass = AutomapShadow ? 0 : 1; pass < 2; ++pass ){
 		AutomapShadowPass = pass == 0;
 		mapRowOnPlayer = shadowRow0; mapColOnPlayer = shadowCol0; yCenter = shadowY0;
+		StairLabelCount = 0; // (thmod) STAIR LABELS: re-collected each pass
 		for( int j = 0; j < automapZoomOffset * 2; j++){
 			int screenx = xCenter;
 			for( int i = 0; i < automapZoomOffset; screenx += AutomapZoom32, i++ ){// (rt) Draw half of the map, in a checkerboard pattern
@@ -363,8 +526,11 @@ void DrawAutoMap()
 				int mapY = mapColOnPlayer - i;
 				short staticObjectFlags = GetStaticObjectFlags(mapX, mapY, IsNotMapOpen); // (rt) 1 - only the explored map, 0 - the whole map
 				if( staticObjectFlags ){
+					if( In40(mapX, mapY) && QuestEntryAt[ mapX ][ mapY ] ) AutomapColorOverride = QuestEntryColor; // (thmod)
 					AutomapDrawStaticObject(screenx, yCenter, staticObjectFlags);
+					AutomapColorOverride = 0;
 				}
+				StairLabels_Queue(mapX, mapY, screenx, yCenter); // (thmod) STAIR LABELS
 			}
 			mapColOnPlayer++; // (rt) The remaining map cells are drawn using this offset.
 			screenx = xCenter - AutomapZoom16;
@@ -373,12 +539,16 @@ void DrawAutoMap()
 				int mapY = mapColOnPlayer - i;
 				short staticObjectFlags = GetStaticObjectFlags(mapX, mapY, IsNotMapOpen); // (rt) 1 - only the explored map, 0 - the whole map
 				if( staticObjectFlags ){
+					if( In40(mapX, mapY) && QuestEntryAt[ mapX ][ mapY ] ) AutomapColorOverride = QuestEntryColor; // (thmod)
 					AutomapDrawStaticObject(screenx, yCenter + AutomapZoom8, staticObjectFlags);
+					AutomapColorOverride = 0;
 				}
+				StairLabels_Queue(mapX, mapY, screenx, yCenter + AutomapZoom8); // (thmod) STAIR LABELS
 			}
 			mapRowOnPlayer++;
 			yCenter += AutomapZoom16;
 		}
+		StairLabels_Draw(); // (thmod) STAIR LABELS: on top of this pass's map lines
 		}
 		AutomapShadowPass = false;
 		if( Dungeon->genType || Dungeon->isQuest ){
@@ -405,8 +575,8 @@ void DrawAutoMap()
 //----- (004021F6) --------------------------------------------------------
 void __fastcall AutomapDrawStaticObject(int x, int y, int staticObjectFlags)
 {
-	const uchar color1 = 200;
-	const uchar color2 = 144;
+	const uchar color1 = AutomapColorOverride ? AutomapColorOverride : 200; // (thmod) QUEST ENTRY COLOR
+	const uchar color2 = AutomapColorOverride ? AutomapColorOverride : 144;
 	if( staticObjectFlags & BIT(15) ){ // (rt) An empty, inaccessible cell. Shown as dots
 		AutomapDrawPoint1(x, y, color1);
 		AutomapDrawPoint1(x - AutomapZoom4, y - AutomapZoom2, color1);

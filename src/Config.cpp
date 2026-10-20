@@ -116,6 +116,7 @@ bool RunInDungeon = false;
 bool PanelsOnCenter = false;
 bool MapItem = true;
 bool AutomapShadow = true; // (th4) dark outline behind the automap's map lines, automap.cpp AUTOMAP SHADOW
+bool StairLabels = true; // (thmod) arrows / letters next to stairs on the automap, automap.cpp STAIR LABELS
 bool Lovecraft = false;   // Gribnik
 bool MapBlend = true;
 bool showCombatText = true;
@@ -305,6 +306,7 @@ ConfigLine ConfigStructure[] = {
 	{ cfgString, MO_BOOL, "lovecraft", 0, &cfg<Lovecraft>, OFF },      // Gribnik
 	{ cfgString, MO_BOOL, "mapblend", 0, &cfg<MapBlend>, ON },
 	{ cfgString, MO_BOOL, "AutomapShadow", "Dark outline behind the automap lines, so the map stays readable on bright floors", &cfg<AutomapShadow>, ON },
+	{ cfgString, MO_BOOL, "StairLabels", "Arrows and letters next to stairs on the automap: up / down arrow, T = town, Q = quest dungeon, E = quest dungeon exit", &cfg<StairLabels>, ON }, // (thmod)
 	{ cfgString, MO_BOOL, "showCombatText", 0, &cfg<showCombatText>, ON },
 	{ cfgString, MO_INT, "floatingHPRegenThreshold", 0, &cfg<FloatingHPRegenThreshold> },
 	{ cfgString, MO_INT, "floatingManaRegenThreshold", 0, &cfg<FloatingManaRegenThreshold> },
