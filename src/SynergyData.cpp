@@ -636,4 +636,44 @@ Perk SynergyPerks[] = {
 		/* 0*/ { 21, IPCM_INQUISITOR, {PERK_FRESH_RESERVES, 3, PERK_DAMAGE_SOAK, 3, PERK_UNSTOPPABLE, 5}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 1 },
 	} },
 
+	// (thmod) HYDRAMANCER SYNERGIES -- no requirements yet (clvl 1, no perk/spell/stat reqs), to be balanced later.
+	// Values: Glance of Destruction is in 1/1000 (5 = 0.5%), Reaper's Sight in milliseconds.
+	{ SYNERGY_HEAD_OF_THE_DRAGON, {"hydras may cast Incinerate::instead of Firebolt::at enemies within 3 tiles::    %i%% chance::(excludes Flame Sculpting)"}, "Head of the Dragon", {
+		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
+		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
+		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 15 },
+	} },
+
+	{ SYNERGY_GLANCE_OF_DESTRUCTION, {"hydras may cast the nova::version of their spell::    chance: %i in 1000::5 sec cooldown per hydra"}, "Glance of Destruction", {
+		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
+		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
+		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 20 },
+	} },
+
+	{ SYNERGY_REAPERS_SIGHT, {"hydras react faster::(base: every 800 ms)::    interval -%i ms"}, "Reaper's Sight", {
+		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 100 },
+		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 200 },
+		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 300 },
+	} },
+
+	{ SYNERGY_FLAME_SCULPTING, {"hydras may cast Fireblast::instead of Firebolt::    %i%% chance::3 sec cooldown per hydra::(excludes Head of the Dragon)"}, "Flame Sculpting", {
+		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  2 },
+		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
+		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
+	} },
+
+	{ SYNERGY_CONJURATION_OVERLOAD, {"hydras may cast Lightning::with 3 chain jumps::instead of Charged Bolt::    %i%% chance"}, "Conjuration Overload", {
+		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  1 },
+		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  3 },
+		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  6 },
+	} },
+
+	{ SYNERGY_WYVERN_WHISPERER, {"    hydra damage +%i%%"}, "Wyvern Whisperer", {
+		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
+		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
+		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 20 },
+		/* 3*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 25 },
+		/* 4*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 30 },
+	} },
+
 };

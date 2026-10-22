@@ -169,6 +169,12 @@ void PerkPanel_ImprovePerk()
 }
 
 //----- (th2) ------------------------------------------------------------
+// (thmod) HYDRAMANCER SYNERGIES
+static bool IsHydramancerSynergy( int perkIndex )
+{
+	return perkIndex >= SYNERGY_HEAD_OF_THE_DRAGON && perkIndex <= SYNERGY_WYVERN_WHISPERER;
+}
+
 bool PerkAvailable( int playerIndex, int perkIndex, int perkLevel )
 {
 	bool available = false;
@@ -553,9 +559,22 @@ bool PerkAvailable( int playerIndex, int perkIndex, int perkLevel )
 		case SYNERGY_IMPENETRABLE:			available = HasTrait(playerIndex, TraitId::Scissor); break;
 		case SYNERGY_COMBAT_LOGS:
 		case SYNERGY_ALLOY_MEMORY:			available = player.gameChanger & BIT(GC_27_TERMINATOR); break;
+		// (thmod) HYDRAMANCER SYNERGIES. Head of the Dragon and Flame Sculpting exclude each other. Raw perk
+		// points on purpose: PerkPoints() calls PerkAvailable() under Black Death, which would recurse forever.
+		case SYNERGY_HEAD_OF_THE_DRAGON:    available = HasTrait(playerIndex, TraitId::Hydramancer) && player.perk[SYNERGY_FLAME_SCULPTING] == 0; break;
+		case SYNERGY_FLAME_SCULPTING:       available = HasTrait(playerIndex, TraitId::Hydramancer) && player.perk[SYNERGY_HEAD_OF_THE_DRAGON] == 0; break;
+		case SYNERGY_GLANCE_OF_DESTRUCTION:
+		case SYNERGY_REAPERS_SIGHT:
+		case SYNERGY_CONJURATION_OVERLOAD:
+		case SYNERGY_WYVERN_WHISPERER:      available = HasTrait(playerIndex, TraitId::Hydramancer); break;
 		case SYNERGY_ONE_MORE:
 		case SYNERGY_REGENERATION:			available = MaxCountOfPlayersInGame == 1 && HasTrait(playerIndex, TraitId::Warlord); break;
 		default: available = true;
+		}
+		// (thmod) a Hydramancer takes ONLY the hydra synergies (LimitPlayerPerks refunds points spent on others)
+		if( available && perkIndex >= PERKS_ONLY_MAX_400 && perkIndex < PERKS_SYNERGY
+		 && HasTrait(playerIndex, TraitId::Hydramancer) && ! IsHydramancerSynergy(perkIndex) ){
+			available = false;
 		}
 	}
 	return available;

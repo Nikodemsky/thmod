@@ -98,6 +98,24 @@ __forceinline bool SomeStrangeFireblastExRoomsCheck(int row, int col)
 // ║                           end of inline	                                 ║
 // ╚═════════════════════════════════════════════════════════════════════════════╝
 
+//----- (thmod) -----------------------------------------------------------
+// HYDRAMANCER SYNERGIES: a missile spawned by a Hydramancer's hydra carries the hydra's spellIndex
+// (PS_13_HYDRA). Such casts deal the damage the hydra computed and cost the player no mana.
+static bool IsHydramancerHydraCast( int casterType, int casterIndex, int spellIndex )
+{
+	return casterType == CT_0_PLAYER && spellIndex == PS_13_HYDRA && (uint)casterIndex < 4 && HasTrait(casterIndex, TraitId::Hydramancer);
+}
+
+// Multi-frame spells (Lightning, Incinerate) hit every frame in internal HP units (x64): spread one
+// hydra hit over the frames the fragment lives, so a monster caught in it takes about one hydra bolt.
+static int HydraMultiFrameDamage( int hydraDamage, int frames )
+{
+	LimitToMin(frames, 1);
+	int damage = hydraDamage * 64 / frames;
+	LimitToMin(damage, 1);
+	return damage;
+}
+
 //----- (th4) -------------------------------------------------------------
 int __fastcall SpellElement(Player& player, int spellIndex)
 {
@@ -141,6 +159,11 @@ int __fastcall GetDamageOfPlayerSpell(int playerIndex, int spellIndex, int spell
 			maxDamage = minDamage + 5 + (player.CharLevel / 5);
 		}
 		
+		if( HasTrait(playerIndex, TraitId::Hydramancer) ){ // (thmod) WYVERN WHISPERER: +% hydra damage
+			const int wyvern = PerkValue(SYNERGY_WYVERN_WHISPERER, playerIndex);
+			minDamage += minDamage * wyvern / 100;
+			maxDamage += maxDamage * wyvern / 100;
+		}
 		// element adjusting example, uncomment if need:
 		//switch(element){
 		//case ET_4_ACID:
@@ -4097,6 +4120,11 @@ void __fastcall CastFireblast(int missileIndex, int casterRow, int casterCol, in
 		missileSpeed = 10 + (Difficulty * 6) + (Dungeon->level / 3) + RNG(1 + (Difficulty * 2) + (Dungeon->level / 2)); // 30-40
 		LimitToMax(missileSpeed, 40);
 	}
+	else if( IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){ // (thmod) FLAME SCULPTING
+		missile.Damage = damage; // hydra damage, no mana
+		missileSpeed = (missile.SpellLevel / 3) + 20 + RNG(missile.SpellLevel / 3 + 1);
+		LimitToMax(missileSpeed, 40);
+	}
 	else{
 		/*missile.Damage = 4 * (player.CharLevel + RNG(50) + RNG(50)) + 90; // <- old damage formula
 		for( int i = 0; i < missile.SpellLevel; i++){
@@ -6218,6 +6246,8 @@ void __fastcall CastNova( int missileIndex, int casterRow, int casterCol, int ta
 	
 	if( casterIndex == M1_TRAP ){ // trap nova damage
 		missile.Damage = 3 + RNG(16) + 2 * Dungeon->level + Difficulty * 34;// mor: this looks like THE formula for lightning nova trap. not sure yet
+	}else if( IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){ // (thmod) GLANCE OF DESTRUCTION
+		missile.Damage = damage; // hydra damage, no mana
 	}else{ // player
 		missile.Damage = GetDamageOfPlayerSpell( casterIndex, missile.spellIndex, missile.SpellLevel, BaseMissiles[missile.BaseMissileIndex].DamageType );
 		MinusManaOrChargeOrRelicByPriceOfSSpell( casterIndex, missile.spellIndex );
@@ -6443,7 +6473,11 @@ void __fastcall CastIncinerateSegment( int missileIndex, int casterRow, int cast
 		// 0043503F
 		Player& player = Players[casterIndex];
 		//missile.Damage = ( 8 * ( RNG(50 + player.CharLevel) ) + 16 ) * 16 ;// old formula
-		missile.Damage = RNG(player.CharLevel * player.CharLevel) + ((player.CharLevel * player.CurMagic) / 3);
+		if( IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){ // (thmod) HEAD OF THE DRAGON
+			missile.Damage = HydraMultiFrameDamage(missile2.Damage, 20); // the parent Incinerate carries the hydra damage
+		}else{
+			missile.Damage = RNG(player.CharLevel * player.CharLevel) + ((player.CharLevel * player.CurMagic) / 3);
+		}
 	}else{
 		// 0043507D
 		Monster& monster = Monsters[casterIndex];
@@ -6477,7 +6511,7 @@ void __fastcall CastIncinerate( int missileIndex, int casterRow, int casterCol, 
 	}
 	// 004350DF
 	SetMissileMovementDelta(missileIndex, casterRow, casterCol, targetRow, targetCol, 32);
-	if( casterType == CT_0_PLAYER ){// (rt) human
+	if( casterType == CT_0_PLAYER && ! IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){// (rt) human; (thmod) a hydra's Incinerate costs no mana
 		MinusManaOrChargeOrRelicByPriceOfSSpell(casterIndex, PS_20_INCINERATE);
 	}
 	// 004350FE
@@ -6996,6 +7030,66 @@ static bool IsPlayerAutoTarget( int monsterIndex )
 	return !( Monsters[monsterIndex].flag & MF_6_FRIENDLY );
 }
 
+// (thmod) HYDRAMANCER SYNERGIES: special casts that replace a hydra's regular bolt. They deal the hydra damage
+// computed by the caller (hydra formula, incl. Wyvern Whisperer), cost no mana and carry spellIndex PS_13_HYDRA,
+// which is how CastNova / CastFireblast / CastIncinerate / ActLightning / ActChainLightning recognize them.
+// Hydra service values used: value[3] = Glance of Destruction cooldown, value[4] = Flame Sculpting cooldown
+// (frames, counted down in ActHydra). RNG is rolled only when the synergy is taken.
+static bool HydramancerSpecialCast( int hydraIndex, int row, int col, int dir, int elem, int damage, int boltLevel )
+{
+	Missile& hydra = Missiles[hydraIndex];
+	const int caster = hydra.CasterIndex;
+	int& glanceCooldown = hydra.value[3];
+	int& sculptCooldown = hydra.value[4];
+	// GLANCE OF DESTRUCTION: the nova version of the rolled spell (chance in 1/1000), 5 s cooldown per hydra
+	if( glanceCooldown <= 0 ){
+		const int chance = PerkValue(SYNERGY_GLANCE_OF_DESTRUCTION, caster);
+		if( chance > 0 && RNG(1000) < chance ){
+			int nova = -1;
+			switch( elem ){
+			case ET_1_FIRE:      nova = MI_72_FIRE_NOVA;      break;
+			case ET_2_LIGHTNING: nova = MI_42_LIGHTNING_NOVA; break;
+			case ET_3_ARCAN:     nova = MI_15_ARCANE_NOVA;    break;
+			case ET_4_ACID:      nova = MI_136_ACID_NOVA;     break;
+			case ET_5_HOLY:      nova = MI_32_HOLY_NOVA;      break; // Inquisitor's favour
+			}
+			if( nova != -1 ){
+				CastMissile(hydra.Row, hydra.Col, row, col, dir, nova, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+				glanceCooldown = 5 * ENGINE_FPS;
+				return true;
+			}
+		}
+	}
+	if( elem == ET_1_FIRE ){
+		// HEAD OF THE DRAGON: Incinerate instead of Firebolt at enemies within 3 tiles
+		if( abs(row - hydra.Row) <= 3 && abs(col - hydra.Col) <= 3 ){
+			const int chance = PerkValue(SYNERGY_HEAD_OF_THE_DRAGON, caster);
+			if( chance > 0 && RNG(100) < chance ){
+				CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_49_INCINERATE, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+				return true;
+			}
+		}
+		// FLAME SCULPTING: Fireblast instead of Firebolt, 3 s cooldown per hydra
+		if( sculptCooldown <= 0 ){
+			const int chance = PerkValue(SYNERGY_FLAME_SCULPTING, caster);
+			if( chance > 0 && RNG(100) < chance ){
+				CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_6_FIREBLAST, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+				sculptCooldown = 3 * ENGINE_FPS;
+				return true;
+			}
+		}
+	}else if( elem == ET_2_LIGHTNING ){
+		// CONJURATION OVERLOAD: Lightning + chain lightning (3 jumps) instead of Charged Bolt
+		const int chance = PerkValue(SYNERGY_CONJURATION_OVERLOAD, caster);
+		if( chance > 0 && RNG(100) < chance ){
+			CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_7_LIGHTNING, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+			CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_133_CHAIN_LIGTNING, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+			return true;
+		}
+	}
+	return false;
+}
+
 bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 {
 	Missile& missile = Missiles[missileIndex];
@@ -7039,6 +7133,11 @@ bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 				int dir = OrientationToTarget(missile.Row, missile.Col, row, col);
 				missile.value[2] = MissileIndexList[0]; // CurHydraFireboltIndex
 				int boltLevel = PlayerSpellLevel(missile.CasterIndex, spell, SO_1_SPELL); // use bolt spell level for correct missile speed (instead of hydra level)
+				if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) && HydramancerSpecialCast(missileIndex, row, col, dir, elem, damage, boltLevel) ){ // (thmod)
+					SetMissileDirection(missileIndex, 2);
+					missile.value[1] = 3;
+					return true;
+				}
 				CastMissile(missile.Row, missile.Col, row, col, dir, bolt, CT_0_PLAYER, missile.CasterIndex, damage, boltLevel, missile.spellIndex );
 				if (elem == ET_3_ARCAN) {
 					PlayLocalSound(/*Spells[spell].SoundType*/ S_1843, missile.Row, missile.Col);
@@ -8479,6 +8578,8 @@ void __fastcall ActLightning(int missileIndex)
 		damage = 4 + (rngArmor + 1) * 8 + rngArmor / 2 + (Difficulty * 64 * 6); // 42 / 8 = 5 avg
 		//damage = monster.ArmorClass * 5 + RNG(monster.ArmorClass * 4) + Difficulty * 100;
 		//damage = (Dungeon->level + Difficulty * 24 ) * 64;
+	}else if( IsHydramancerHydraCast(missile.CasterType, missile.CasterIndex, missile.spellIndex) ){ // (thmod) CONJURATION OVERLOAD
+		damage = HydraMultiFrameDamage(missile.Damage, missile.SpellLevel / 2 + 6); // segment life, see Cast_Lightning_Segment
 	}else{
 		Player& player = Players[missile.CasterIndex]; // 004370DD
 		damage = ((player.CharLevel / 3) + RNG(player.CharLevel / 2 + 1) + 2 + (player.CurMagic / 10)) * 64; //  ( (CLVL / 3) + Rnd[ (CLVL / 2) + 1 ] + 2 + (curMAG / 10 ) )
@@ -9253,7 +9354,16 @@ void __fastcall ActHydra(int missileIndex)
 		SetMissileDirection(missileIndex, 1);
 	}
 
-	if( !(missile.TimeToLive % 16) ){
+	// (thmod) REAPER'S SIGHT: a Hydramancer's hydras look for a target more often (base 16 frames = 0.8 s)
+	int hydraInterval = 16;
+	if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) ){
+		hydraInterval -= PerkValue(SYNERGY_REAPERS_SIGHT, missile.CasterIndex) * ENGINE_FPS / 1000;
+		LimitToMin(hydraInterval, 1);
+		// per-hydra cooldowns of Glance of Destruction / Flame Sculpting (see HydramancerSpecialCast)
+		if( missile.value[3] > 0 ) missile.value[3]--;
+		if( missile.value[4] > 0 ) missile.value[4]--;
+	}
+	if( !(missile.TimeToLive % hydraInterval) ){
 		int prevRowDelta = 0;
 		int prevColDelta = 0;
 
@@ -9309,8 +9419,12 @@ void __fastcall ActChainLightning(int missileIndex)
 	//int dir = OrientationToTarget(missile.Row, missile.Col, targetRow, targetCol);
 	//CastMissile(missile.Row, missile.Col, targetRow, targetCol, dir, MI_7_LIGHTNING, CT_0_PLAYER, missile.CasterIndex, 1, missile.SpellLevel, missile.spellIndex);
 
-	int extraChains = PerkValue(PERK_CHAIN_LIGHTNING, missile.CasterIndex);
-	if (GameMode == GM_CLASSIC) {
+	// (thmod) CONJURATION OVERLOAD: a hydra's chain always makes 3 jumps, to monsters other than the
+	// hydra's own target, and its bolts carry the hydra damage
+	const bool hydraCast = IsHydramancerHydraCast(missile.CasterType, missile.CasterIndex, missile.spellIndex);
+	const int hydraTarget = hydraCast && To112(missile.value[0], missile.value[1]) ? MonsterMap[missile.value[0]][missile.value[1]] : 0;
+	int extraChains = hydraCast ? 3 : PerkValue(PERK_CHAIN_LIGHTNING, missile.CasterIndex);
+	if (GameMode == GM_CLASSIC && !hydraCast) {
 		extraChains = missile.SpellLevel - 1;
 	}
 	int rad = 10; // max radius + 1, 10 == from 0 to 9
@@ -9325,12 +9439,12 @@ void __fastcall ActChainLightning(int missileIndex)
 				int col = missile.Col + CircleAndWallSegmentDeltas[1 + circleOffset + coordinateIndex * 2 + 1];
 				if( To112(row, col) ){
 					int monsterNum = MonsterMap[row][col];
-					if( monsterNum > 0 && CheckCastInSight(missile.Row, missile.Col, row, col ) ){
+					if( monsterNum > 0 && !(hydraCast && monsterNum == hydraTarget) && CheckCastInSight(missile.Row, missile.Col, row, col ) ){
 						int monsterIndex = monsterNum - 1;
 						Monster& monster = Monsters[monsterIndex];
 						if( ! IsMonsterImmuneToMissile(monsterIndex, BaseMissiles[missile.BaseMissileIndex].DamageType, missile.CasterIndex) && IsPlayerAutoTarget( monsterIndex ) ){
 							int dir = OrientationToTarget(missile.Row, missile.Col, row, col);
-							CastMissile(missile.Row, missile.Col, row, col, dir, MI_7_LIGHTNING, CT_0_PLAYER, missile.CasterIndex, 1, missile.SpellLevel, missile.spellIndex);
+							CastMissile(missile.Row, missile.Col, row, col, dir, MI_7_LIGHTNING, CT_0_PLAYER, missile.CasterIndex, hydraCast ? missile.Damage : 1, missile.SpellLevel, missile.spellIndex);
 							if (--extraChains <= 0) { goto endOfChains; }
 						}
 					}
