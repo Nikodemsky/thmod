@@ -1468,6 +1468,9 @@ std::pair<COOLDOWN_TYPE, int> GetSpellCooldownValue( int playerIndex, int spellI
 		} break;
 	case PS_52_LESSER_SUMMON:
 		{
+			if (IsSiegemaster(playerIndex)) { // (thmod) summon Bombardier
+				return { COOLDOWN_TYPE::CD_SIEGE_BOMBARDIER, SiegeSummonCooldown };
+			}
 			int sum_cd = 0;
 			if (HasTrait(playerIndex, TraitId::Warlord)) {
 				sum_cd = 90 - PerkValue(PERK_FRESH_RESERVES, playerIndex);
@@ -1475,6 +1478,10 @@ std::pair<COOLDOWN_TYPE, int> GetSpellCooldownValue( int playerIndex, int spellI
 				LimitToMin(sum_cd, 10);
 				return { COOLDOWN_TYPE::CD_OFFENSIVE, sum_cd };
 			}			
+		} break;
+	case PS_53_COMMON_SUMMON: // (thmod) summon Trapper
+		if (IsSiegemaster(playerIndex)) {
+			return { COOLDOWN_TYPE::CD_SIEGE_TRAPPER, SiegeSummonCooldown };
 		} break;
 	}
     return { CD_NONE, 0 };
@@ -2879,6 +2886,8 @@ array Cooldowns = {
 	"Stone Curse",
 	"Apocalypse",
 	"Force Wave",
+	"Bombardier",	// (thmod) CD_SIEGE_BOMBARDIER
+	"Trapper",		// (thmod) CD_SIEGE_TRAPPER
 	//"Mercenary"
 };
 
@@ -3552,6 +3561,8 @@ Ai AiFuncs[AI_count] = { // 004B37C0
 	{ AI_58_Mixed_Psychic_Bite,        Ai_58_Hybrid_Psychic }, // melee + psychic (distant) hit with no animation (invisible arrow)
 	{ AI_59_Tentaclist,                Ai_59_Tentaclist },
 	{ AI_60_Invisible_Stalker,         Ai_60_Invisible_Stalker }, // th4
+	{ AI_61_Siege_Bombardier,          Ai_61_Siege_Bombardier }, // (thmod) Siegemaster
+	{ AI_62_Siege_Trapper,             Ai_62_Siege_Trapper }, // (thmod) Siegemaster
 };
 
 //---- (th2) ------------------------------------------------------------------

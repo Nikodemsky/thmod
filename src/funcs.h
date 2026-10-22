@@ -1465,6 +1465,8 @@ void __fastcall Ai_19_Acid_Beast( uint monsterIndex	);//	Monster
 void __fastcall Ai_27_Diablo( uint monsterIndex	);//	Monster		
 void __fastcall Ai_59_Tentaclist(uint monsterIndex);
 void __fastcall Ai_60_Invisible_Stalker(uint monsterIndex); // th4
+void __fastcall Ai_61_Siege_Bombardier(uint monsterIndex); // (thmod) Siegemaster minion
+void __fastcall Ai_62_Siege_Trapper(uint monsterIndex); // (thmod) Siegemaster minion
 void __fastcall Universal_ShortRangeSecondAttack( uint monsterIndex, int spellEffect, int damage	);//	Monster		
 void __fastcall Ai_26_Balrog( uint monsterIndex	);//	Monster		
 void __fastcall Ai_21_Golem( uint monsterIndex	);//	Monster		
@@ -2781,6 +2783,33 @@ int GetTraitSpellIcon( TraitId id );
 template<typename... T> __forceinline bool HasTrait(uint playerIndex, T&&... val){ return playerIndex > 3 ? false : has(Players[playerIndex].traits, val...); }
 template<typename... T> __forceinline bool CurTrait(T&&... val){ return has(Players[CurrentPlayerIndex].traits, val...); }
 template<typename... T> __forceinline bool HasTrait(const Player& player, T&&... val) { return has(player.traits, val...); }
+
+// (thmod) SIEGEMASTER -- Guardian trait, single player only. Lesser Summon brings a Bombardier,
+// Common Summon a Trapper; both are monsters drawn from the PLAYER Bombardier / Trapper graphics
+// (Monster.cpp "SIEGEMASTER"). Balance numbers live here so perks can scale them later.
+constexpr int SiegeSummonCooldown  = 15;  // seconds, each summon skill has its own cooldown
+constexpr int SiegeTrapperMaxTraps = 4;   // traps one Trapper keeps on the ground at once
+constexpr int SiegeBombThrowRange  = 8;   // the Bombardier walks closer when its target is farther than this
+constexpr int SiegeCombatRadius    = 12;  // the Guardian is "in a fight" with an awake hostile monster this close
+constexpr int SiegeTrapRingRadius  = 3;   // the Trapper sets her traps this far around the Guardian
+constexpr int SiegeTrapLeashRadius = 10;  // a trap farther than this from the Guardian starts fading
+constexpr int SiegeTrapThrowReach  = 6;   // the Trapper walks closer to a spot farther than this
+// Icon frames APPENDED to Data\SpelIcon.CEL and Data\SpellI2.CEL (1-based, both files have 254 frames
+// in TH4 v0.774). Until the extended files from resources\ are packed, SiegeSpellIcon falls back.
+constexpr int SiegeIconTrait       = 255;
+constexpr int SiegeIconBombardier  = 256; // placeholder "B1"
+constexpr int SiegeIconTrapper     = 257; // placeholder "T1"
+bool IsSiegemaster( int playerIndex );
+bool IsSiegeMinion( int baseMonsterIndex );
+int SiegeSpellIcon( int newIcon, int fallbackIcon );
+const char* SiegeMinionAnimFile( int baseMonsterIndex, int animationIndex );
+bool SiegeTrapperLayTrap( int monsterIndex );
+bool SiegeTakeTrapSpot( int trapperIndex, int& row, int& col );
+int MonsterDrawPitch( const Monster& monster );
+// Base stats of a Siegemaster minion before affix / perk bonuses: the lowest and highest roll.
+// MakeGolem rolls between them, the spell book shows the range. life is in 1/64 HP like BaseLife.
+struct SiegeMinionStats { int life, toHit, minDamage, maxDamage, armorClass; };
+void SiegeMinionStatRange( int baseMonsterIndex, int clvl, SiegeMinionStats& lo, SiegeMinionStats& hi );
 
 bool IsMonsterImmuneToMissile(int monsterIndex, int damageType, int playerIndex);
 

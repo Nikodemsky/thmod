@@ -5305,6 +5305,12 @@ void __fastcall DrawSceneDungeonTop( int row, int col, int offsetX, int offsetY,
 void __fastcall MonsterSpritePosAdjust(int baseMonsterIndex, int anim, int dir, short& x, short& y)
 {
 	switch (baseMonsterIndex) {
+	// (thmod) SIEGEMASTER minions: their 96 px player sheets sit in a 128 px sprite (MonsterDrawPitch).
+	// StartOfsX is worked out for 128, so move the narrow sheets back by half the difference.
+	case BM_424_SIEGE_BOMBARDIER:
+	case BM_425_SIEGE_TRAPPER:
+		if (is(anim, ANIM_0_STAY, ANIM_1_WALK, ANIM_3_HIT, ANIM_5_SECOND)) { x += (128 - 96) / 2; }
+		break;
 	case BM_232_ABYSSAL_SUCCUBUS: y += 26; break;
 	case BM_NPC_420_GRISWOLD: y += 24; break;
 	case BM_233_BLOOD_LORD: if (anim == ANIM_4_DIE) { y += 10; } break;
@@ -5539,6 +5545,25 @@ volatile int ShiftX = 0;
 volatile int ShiftY = 0;
 #endif
 //----- (th3) -------------------------------------------------------------
+// (thmod) SIEGEMASTER minions are drawn from PLAYER sheets, which do not share one width:
+// stand / walk / hit (and the appear animation, which reuses stand) are 96 px, attack and death
+// 128 px. The CL2 decoder must be given the real width of the sheet being drawn, so look up which
+// animation curAnimation points into. Every other monster has one pitch for all its sheets.
+int MonsterDrawPitch( const Monster& monster )
+{
+	const MonsterSprite* sprite = monster.SpritePtr;
+	if( !sprite ) return 0;
+	if( IsSiegeMinion( sprite->baseMonsterIndex ) && monster.curAnimation ){
+		for( int anim = 0; anim < 6; ++anim ){
+			const AnimDir* first = &sprite->animation[ anim ].oriented[ 0 ];
+			if( monster.curAnimation >= first && monster.curAnimation < first + 8 ){
+				return is( anim, ANIM_2_ATTACK, ANIM_4_DIE ) ? 128 : 96;
+			}
+		}
+	}
+	return sprite->Pitch;
+}
+
 void __fastcall MonsterPosAdjust(AnimDir* animDir, int& monsterX, int& monsterY, int& tilesInCell, int monsterIndex /*= 0*/)
 {
 	monsterX += animDir->xOfs;
@@ -5623,7 +5648,7 @@ void __fastcall DrawMonsterInTile( int monsterIndex, uchar* surfaceDest, int row
 						bool drawOutline = false;
 						// (th4) SNOW DEPTH (Snowfall.cpp): Ice Age Ravenholm's monsters stand knee-deep, outline included;
 						// fliers hover above the snow; not on the frozen river's water or on bare ground (TownWater_FeetBare)
-						SnowDepth_Begin( x, y, monsterSprite->Pitch, !Snowfall_Active() || monster->canFly || TownWater_FeetBare( row, col, monster->DeltaX, monster->DeltaY ), SnowDepthSlope( monster->Orientation ), false );
+						SnowDepth_Begin( x, y, MonsterDrawPitch(*monster), !Snowfall_Active() || monster->canFly || TownWater_FeetBare( row, col, monster->DeltaX, monster->DeltaY ), SnowDepthSlope( monster->Orientation ), false );
 						if( monsterIndex == CurMon || ( AlwaysHighlightSummons && monsterIndex < SummonMonsters_Count ) ) {
 							// (th4) Dark Campaign hub: kin hover BLUE. 184 is mid-way along the blue
 							// row of the palette's LOWER half (indices 176-191), which is identical in
@@ -5648,7 +5673,7 @@ void __fastcall DrawMonsterInTile( int monsterIndex, uchar* surfaceDest, int row
 							borderColor = Dungeon == DUN_117_DARKLORD_HIDEOUT ? 184
 											  : ( monsterIndex < SummonMonsters_Count || dcEscort || dcLazarus || dcHephasto ) ? 165 : 233;
 							drawOutline = true;
-							CL2_DrawOutline(borderColor, x, y, monster->curAnimation->data, monster->CurFrame, monsterSprite->Pitch, submergeSkip, tilesInCell);
+							CL2_DrawOutline(borderColor, x, y, monster->curAnimation->data, monster->CurFrame, MonsterDrawPitch(*monster), submergeSkip, tilesInCell);
 						}
 						DrawMonster(row, col, x, y, monsterIndex, submergeSkip, tilesInCell);
 						// (th4) A8L8 ring-light pass after the body: lifts only the visible
@@ -5656,7 +5681,7 @@ void __fastcall DrawMonsterInTile( int monsterIndex, uchar* surfaceDest, int row
 						// -- see Rle2DrawLightOutline). Mirrors the ALT-highlight fix for
 						// dungeon objects (commit c5a66475).
 						if( drawOutline && g_A8L8Lighting ){
-							CL2_DrawLightOutline(borderColor, x, y, monster->curAnimation->data, monster->CurFrame, monsterSprite->Pitch, submergeSkip, tilesInCell);
+							CL2_DrawLightOutline(borderColor, x, y, monster->curAnimation->data, monster->CurFrame, MonsterDrawPitch(*monster), submergeSkip, tilesInCell);
 						}
 						SnowDepth_End( monster->curAnimation->data, monster->CurFrame );	// (th4) SNOW DEPTH: key = what DrawMonster queued for the Enriched Light replay
 						if( firstDraw && ! (monster->flag & MF_14_UNDER_ARCH) ){
@@ -6155,7 +6180,7 @@ void __fastcall DrawMonster(int row, int col, int monsterX, int monsterY, unsign
 	if (maybeCountOfFrames > 70 || curFrame > maybeCountOfFrames) {
 		return;
 	}
-	int pitch = monsterSprite->Pitch;
+	int pitch = MonsterDrawPitch(monster); // (thmod) per animation for the Siegemaster minions
 
 	// Overhead HP bar (config-gated). Drawn for every visible monster regardless of
 	// which draw path is taken below (normal, boss/lit, or stoned), so unique bosses

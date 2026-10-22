@@ -207,6 +207,7 @@ const char* GetFullClassName( int playerIndex )
 		else if (player.gameChanger & BIT(GC_28_SUPERMUTANT))				name = "Super Mutant";
 		else if (player.gameChanger & BIT(GC_29_ENCLAVE_SOLDIER))			name = "Enclave Soldier";
 		else if (HasTrait(playerIndex, TraitId::Pistoleer))					name = "Pistoleer";
+		else if (HasTrait(playerIndex, TraitId::Siegemaster))				name = "Siegemaster";	// (thmod)
 	}
 		break;
 	case PFC_EXECUTIONER: if( player.gameChanger & BIT(GC_9_NIGHT_KIN)   )	name = "Night Kin";		break;

@@ -3310,7 +3310,7 @@ struct P_v25
 	short			spellPercent[128];
 	int				spellDamageMin[128];
 	int				spellDamageMax[128];
-	ushort			cooldowns[CD_COUNT];
+	ushort			cooldowns[7];	// (thmod) frozen: CD_COUNT was 7 when v25 saves were written (it grew with the Siegemaster cooldowns)
 	short			_reserved[65];
 	char*			turningAnimationsPointers[8];
 

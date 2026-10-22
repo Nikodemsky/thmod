@@ -98,6 +98,24 @@ __forceinline bool SomeStrangeFireblastExRoomsCheck(int row, int col)
 // ║                           end of inline	                                 ║
 // ╚═════════════════════════════════════════════════════════════════════════════╝
 
+//----- (thmod) -----------------------------------------------------------
+// HYDRAMANCER SYNERGIES: a missile spawned by a Hydramancer's hydra carries the hydra's spellIndex
+// (PS_13_HYDRA). Such casts deal the damage the hydra computed and cost the player no mana.
+static bool IsHydramancerHydraCast( int casterType, int casterIndex, int spellIndex )
+{
+	return casterType == CT_0_PLAYER && spellIndex == PS_13_HYDRA && (uint)casterIndex < 4 && HasTrait(casterIndex, TraitId::Hydramancer);
+}
+
+// Multi-frame spells (Lightning, Incinerate) hit every frame in internal HP units (x64): spread one
+// hydra hit over the frames the fragment lives, so a monster caught in it takes about one hydra bolt.
+static int HydraMultiFrameDamage( int hydraDamage, int frames )
+{
+	LimitToMin(frames, 1);
+	int damage = hydraDamage * 64 / frames;
+	LimitToMin(damage, 1);
+	return damage;
+}
+
 //----- (th4) -------------------------------------------------------------
 int __fastcall SpellElement(Player& player, int spellIndex)
 {
@@ -141,6 +159,11 @@ int __fastcall GetDamageOfPlayerSpell(int playerIndex, int spellIndex, int spell
 			maxDamage = minDamage + 5 + (player.CharLevel / 5);
 		}
 		
+		if( HasTrait(playerIndex, TraitId::Hydramancer) ){ // (thmod) WYVERN WHISPERER: +% hydra damage
+			const int wyvern = PerkValue(SYNERGY_WYVERN_WHISPERER, playerIndex);
+			minDamage += minDamage * wyvern / 100;
+			maxDamage += maxDamage * wyvern / 100;
+		}
 		// element adjusting example, uncomment if need:
 		//switch(element){
 		//case ET_4_ACID:
@@ -4097,6 +4120,11 @@ void __fastcall CastFireblast(int missileIndex, int casterRow, int casterCol, in
 		missileSpeed = 10 + (Difficulty * 6) + (Dungeon->level / 3) + RNG(1 + (Difficulty * 2) + (Dungeon->level / 2)); // 30-40
 		LimitToMax(missileSpeed, 40);
 	}
+	else if( IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){ // (thmod) FLAME SCULPTING
+		missile.Damage = damage; // hydra damage, no mana
+		missileSpeed = (missile.SpellLevel / 3) + 20 + RNG(missile.SpellLevel / 3 + 1);
+		LimitToMax(missileSpeed, 40);
+	}
 	else{
 		/*missile.Damage = 4 * (player.CharLevel + RNG(50) + RNG(50)) + 90; // <- old damage formula
 		for( int i = 0; i < missile.SpellLevel; i++){
@@ -5565,6 +5593,9 @@ int CalculateGolemMaxAmount(int playerindex)
 //----- (th2) -------------------------------------------------------------
 int CalculateSummonsMaxAmount( int summonType, int slvl, int playerindex )
 {
+    if( IsSiegemaster( playerindex ) && is( summonType, SUM_LESSER, SUM_COMMON ) ){
+        return 1; // (thmod) SIEGEMASTER: one Bombardier and one Trapper
+    }
     switch( summonType ){
         case SUM_LESSER: return CalculateLesserSummonsMaxAmount( slvl, playerindex); break;
         case SUM_COMMON: return CalculateCommonSummonsMaxAmount( slvl ); break;
@@ -6215,6 +6246,8 @@ void __fastcall CastNova( int missileIndex, int casterRow, int casterCol, int ta
 	
 	if( casterIndex == M1_TRAP ){ // trap nova damage
 		missile.Damage = 3 + RNG(16) + 2 * Dungeon->level + Difficulty * 34;// mor: this looks like THE formula for lightning nova trap. not sure yet
+	}else if( IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){ // (thmod) GLANCE OF DESTRUCTION
+		missile.Damage = damage; // hydra damage, no mana
 	}else{ // player
 		missile.Damage = GetDamageOfPlayerSpell( casterIndex, missile.spellIndex, missile.SpellLevel, BaseMissiles[missile.BaseMissileIndex].DamageType );
 		MinusManaOrChargeOrRelicByPriceOfSSpell( casterIndex, missile.spellIndex );
@@ -6440,7 +6473,11 @@ void __fastcall CastIncinerateSegment( int missileIndex, int casterRow, int cast
 		// 0043503F
 		Player& player = Players[casterIndex];
 		//missile.Damage = ( 8 * ( RNG(50 + player.CharLevel) ) + 16 ) * 16 ;// old formula
-		missile.Damage = RNG(player.CharLevel * player.CharLevel) + ((player.CharLevel * player.CurMagic) / 3);
+		if( IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){ // (thmod) HEAD OF THE DRAGON
+			missile.Damage = HydraMultiFrameDamage(missile2.Damage, 20); // the parent Incinerate carries the hydra damage
+		}else{
+			missile.Damage = RNG(player.CharLevel * player.CharLevel) + ((player.CharLevel * player.CurMagic) / 3);
+		}
 	}else{
 		// 0043507D
 		Monster& monster = Monsters[casterIndex];
@@ -6474,7 +6511,7 @@ void __fastcall CastIncinerate( int missileIndex, int casterRow, int casterCol, 
 	}
 	// 004350DF
 	SetMissileMovementDelta(missileIndex, casterRow, casterCol, targetRow, targetCol, 32);
-	if( casterType == CT_0_PLAYER ){// (rt) human
+	if( casterType == CT_0_PLAYER && ! IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){// (rt) human; (thmod) a hydra's Incinerate costs no mana
 		MinusManaOrChargeOrRelicByPriceOfSSpell(casterIndex, PS_20_INCINERATE);
 	}
 	// 004350FE
@@ -6993,6 +7030,66 @@ static bool IsPlayerAutoTarget( int monsterIndex )
 	return !( Monsters[monsterIndex].flag & MF_6_FRIENDLY );
 }
 
+// (thmod) HYDRAMANCER SYNERGIES: special casts that replace a hydra's regular bolt. They deal the hydra damage
+// computed by the caller (hydra formula, incl. Wyvern Whisperer), cost no mana and carry spellIndex PS_13_HYDRA,
+// which is how CastNova / CastFireblast / CastIncinerate / ActLightning / ActChainLightning recognize them.
+// Hydra service values used: value[3] = Glance of Destruction cooldown, value[4] = Flame Sculpting cooldown
+// (frames, counted down in ActHydra). RNG is rolled only when the synergy is taken.
+static bool HydramancerSpecialCast( int hydraIndex, int row, int col, int dir, int elem, int damage, int boltLevel )
+{
+	Missile& hydra = Missiles[hydraIndex];
+	const int caster = hydra.CasterIndex;
+	int& glanceCooldown = hydra.value[3];
+	int& sculptCooldown = hydra.value[4];
+	// GLANCE OF DESTRUCTION: the nova version of the rolled spell (chance in 1/1000), 5 s cooldown per hydra
+	if( glanceCooldown <= 0 ){
+		const int chance = PerkValue(SYNERGY_GLANCE_OF_DESTRUCTION, caster);
+		if( chance > 0 && RNG(1000) < chance ){
+			int nova = -1;
+			switch( elem ){
+			case ET_1_FIRE:      nova = MI_72_FIRE_NOVA;      break;
+			case ET_2_LIGHTNING: nova = MI_42_LIGHTNING_NOVA; break;
+			case ET_3_ARCAN:     nova = MI_15_ARCANE_NOVA;    break;
+			case ET_4_ACID:      nova = MI_136_ACID_NOVA;     break;
+			case ET_5_HOLY:      nova = MI_32_HOLY_NOVA;      break; // Inquisitor's favour
+			}
+			if( nova != -1 ){
+				CastMissile(hydra.Row, hydra.Col, row, col, dir, nova, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+				glanceCooldown = 5 * ENGINE_FPS;
+				return true;
+			}
+		}
+	}
+	if( elem == ET_1_FIRE ){
+		// HEAD OF THE DRAGON: Incinerate instead of Firebolt at enemies within 3 tiles
+		if( abs(row - hydra.Row) <= 3 && abs(col - hydra.Col) <= 3 ){
+			const int chance = PerkValue(SYNERGY_HEAD_OF_THE_DRAGON, caster);
+			if( chance > 0 && RNG(100) < chance ){
+				CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_49_INCINERATE, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+				return true;
+			}
+		}
+		// FLAME SCULPTING: Fireblast instead of Firebolt, 3 s cooldown per hydra
+		if( sculptCooldown <= 0 ){
+			const int chance = PerkValue(SYNERGY_FLAME_SCULPTING, caster);
+			if( chance > 0 && RNG(100) < chance ){
+				CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_6_FIREBLAST, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+				sculptCooldown = 3 * ENGINE_FPS;
+				return true;
+			}
+		}
+	}else if( elem == ET_2_LIGHTNING ){
+		// CONJURATION OVERLOAD: Lightning + chain lightning (3 jumps) instead of Charged Bolt
+		const int chance = PerkValue(SYNERGY_CONJURATION_OVERLOAD, caster);
+		if( chance > 0 && RNG(100) < chance ){
+			CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_7_LIGHTNING, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+			CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_133_CHAIN_LIGTNING, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+			return true;
+		}
+	}
+	return false;
+}
+
 bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 {
 	Missile& missile = Missiles[missileIndex];
@@ -7036,6 +7133,11 @@ bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 				int dir = OrientationToTarget(missile.Row, missile.Col, row, col);
 				missile.value[2] = MissileIndexList[0]; // CurHydraFireboltIndex
 				int boltLevel = PlayerSpellLevel(missile.CasterIndex, spell, SO_1_SPELL); // use bolt spell level for correct missile speed (instead of hydra level)
+				if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) && HydramancerSpecialCast(missileIndex, row, col, dir, elem, damage, boltLevel) ){ // (thmod)
+					SetMissileDirection(missileIndex, 2);
+					missile.value[1] = 3;
+					return true;
+				}
 				CastMissile(missile.Row, missile.Col, row, col, dir, bolt, CT_0_PLAYER, missile.CasterIndex, damage, boltLevel, missile.spellIndex );
 				if (elem == ET_3_ARCAN) {
 					PlayLocalSound(/*Spells[spell].SoundType*/ S_1843, missile.Row, missile.Col);
@@ -8476,6 +8578,8 @@ void __fastcall ActLightning(int missileIndex)
 		damage = 4 + (rngArmor + 1) * 8 + rngArmor / 2 + (Difficulty * 64 * 6); // 42 / 8 = 5 avg
 		//damage = monster.ArmorClass * 5 + RNG(monster.ArmorClass * 4) + Difficulty * 100;
 		//damage = (Dungeon->level + Difficulty * 24 ) * 64;
+	}else if( IsHydramancerHydraCast(missile.CasterType, missile.CasterIndex, missile.spellIndex) ){ // (thmod) CONJURATION OVERLOAD
+		damage = HydraMultiFrameDamage(missile.Damage, missile.SpellLevel / 2 + 6); // segment life, see Cast_Lightning_Segment
 	}else{
 		Player& player = Players[missile.CasterIndex]; // 004370DD
 		damage = ((player.CharLevel / 3) + RNG(player.CharLevel / 2 + 1) + 2 + (player.CurMagic / 10)) * 64; //  ( (CLVL / 3) + Rnd[ (CLVL / 2) + 1 ] + 2 + (curMAG / 10 ) )
@@ -9250,7 +9354,16 @@ void __fastcall ActHydra(int missileIndex)
 		SetMissileDirection(missileIndex, 1);
 	}
 
-	if( !(missile.TimeToLive % 16) ){
+	// (thmod) REAPER'S SIGHT: a Hydramancer's hydras look for a target more often (base 16 frames = 0.8 s)
+	int hydraInterval = 16;
+	if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) ){
+		hydraInterval -= PerkValue(SYNERGY_REAPERS_SIGHT, missile.CasterIndex) * ENGINE_FPS / 1000;
+		LimitToMin(hydraInterval, 1);
+		// per-hydra cooldowns of Glance of Destruction / Flame Sculpting (see HydramancerSpecialCast)
+		if( missile.value[3] > 0 ) missile.value[3]--;
+		if( missile.value[4] > 0 ) missile.value[4]--;
+	}
+	if( !(missile.TimeToLive % hydraInterval) ){
 		int prevRowDelta = 0;
 		int prevColDelta = 0;
 
@@ -9306,8 +9419,12 @@ void __fastcall ActChainLightning(int missileIndex)
 	//int dir = OrientationToTarget(missile.Row, missile.Col, targetRow, targetCol);
 	//CastMissile(missile.Row, missile.Col, targetRow, targetCol, dir, MI_7_LIGHTNING, CT_0_PLAYER, missile.CasterIndex, 1, missile.SpellLevel, missile.spellIndex);
 
-	int extraChains = PerkValue(PERK_CHAIN_LIGHTNING, missile.CasterIndex);
-	if (GameMode == GM_CLASSIC) {
+	// (thmod) CONJURATION OVERLOAD: a hydra's chain always makes 3 jumps, to monsters other than the
+	// hydra's own target, and its bolts carry the hydra damage
+	const bool hydraCast = IsHydramancerHydraCast(missile.CasterType, missile.CasterIndex, missile.spellIndex);
+	const int hydraTarget = hydraCast && To112(missile.value[0], missile.value[1]) ? MonsterMap[missile.value[0]][missile.value[1]] : 0;
+	int extraChains = hydraCast ? 3 : PerkValue(PERK_CHAIN_LIGHTNING, missile.CasterIndex);
+	if (GameMode == GM_CLASSIC && !hydraCast) {
 		extraChains = missile.SpellLevel - 1;
 	}
 	int rad = 10; // max radius + 1, 10 == from 0 to 9
@@ -9322,12 +9439,12 @@ void __fastcall ActChainLightning(int missileIndex)
 				int col = missile.Col + CircleAndWallSegmentDeltas[1 + circleOffset + coordinateIndex * 2 + 1];
 				if( To112(row, col) ){
 					int monsterNum = MonsterMap[row][col];
-					if( monsterNum > 0 && CheckCastInSight(missile.Row, missile.Col, row, col ) ){
+					if( monsterNum > 0 && !(hydraCast && monsterNum == hydraTarget) && CheckCastInSight(missile.Row, missile.Col, row, col ) ){
 						int monsterIndex = monsterNum - 1;
 						Monster& monster = Monsters[monsterIndex];
 						if( ! IsMonsterImmuneToMissile(monsterIndex, BaseMissiles[missile.BaseMissileIndex].DamageType, missile.CasterIndex) && IsPlayerAutoTarget( monsterIndex ) ){
 							int dir = OrientationToTarget(missile.Row, missile.Col, row, col);
-							CastMissile(missile.Row, missile.Col, row, col, dir, MI_7_LIGHTNING, CT_0_PLAYER, missile.CasterIndex, 1, missile.SpellLevel, missile.spellIndex);
+							CastMissile(missile.Row, missile.Col, row, col, dir, MI_7_LIGHTNING, CT_0_PLAYER, missile.CasterIndex, hydraCast ? missile.Damage : 1, missile.SpellLevel, missile.spellIndex);
 							if (--extraChains <= 0) { goto endOfChains; }
 						}
 					}
@@ -11212,6 +11329,34 @@ void __fastcall ClearMissileCell(int missileIndex)
 
 // =============================== FLASK ==================================
 
+//----- (thmod) SIEGEMASTER ---------------------------------------------------
+// The Bombardier and the Trapper are monsters (CT_1_MONSTER_AND_TRAP) throwing
+// the same flask / trap missiles a player does. These tell the flask and trap code who they belong to.
+
+// The player a missile belongs to: its caster, or the owner of the summon that cast it; -1 for none.
+static int MissileOwnerPlayer( const Missile& missile )
+{
+	if( missile.CasterType == CT_0_PLAYER ) return missile.CasterIndex;
+	if( missile.CasterType == CT_1_MONSTER_AND_TRAP && (uint) missile.CasterIndex < SummonMonsters_Count ){
+		return missile.CasterIndex / SummonMonstersPerPlayer_Count;
+	}
+	return -1;
+}
+
+// A summon's flask, trap or trap arrow whose summon has died or been unsummoned: it goes with her.
+static bool IsOrphanedSummonMissile( const Missile& missile )
+{
+	return missile.CasterType == CT_1_MONSTER_AND_TRAP && (uint) missile.CasterIndex < SummonMonsters_Count
+		&& !IsSummonAlive( missile.CasterIndex );
+}
+
+// A monster has no flask or trap in hand: it throws with its own damage, and the grade -- reach,
+// splash, trap fire rate -- follows the summon owner's character level the way looted gear would.
+static int SummonOwnerLevel( int monsterIndex )
+{
+	return (uint) monsterIndex < SummonMonsters_Count ? Players[ monsterIndex / SummonMonstersPerPlayer_Count ].CharLevel : 1;
+}
+
 //----- (th3) -------------------------------------------------------------
 void __fastcall CastFlaskThrow( int missileIndex, int casterRow, int casterCol, int targetRow, int targetCol, int casterDirection, int casterType, int casterIndex, int damage )
 {
@@ -11303,6 +11448,30 @@ void __fastcall CastFlaskThrow( int missileIndex, int casterRow, int casterCol, 
 		if( distance > MaxFlaskThrowDistance) distance = MaxFlaskThrowDistance;
 		spellSpeed = static_cast<int>( distance * 3.8 );
     }
+	else if( casterType == CT_1_MONSTER_AND_TRAP && (uint) casterIndex < Monsters_Max_Count ) // (thmod) SIEGEMASTER Bombardier
+	{
+		const Monster& thrower = Monsters[ casterIndex ];
+		minDamage = thrower.MinDamage;
+		maxDamage = thrower.MaxDamage;
+		overTime = 0;
+		// FlasksInfo.cpp holds 20 grades of each flask kind, in this order
+		int firstCode = 100;
+		switch( missile.BaseMissileIndex ){
+		case MI_110_FLASK_OF_FIRE:          firstCode =   0; break;
+		case MI_111_FLASK_OF_LIGHTNING:     firstCode =  20; break;
+		case MI_112_FLASK_OF_ACID:          firstCode =  40; break;
+		case MI_113_FLASK_OF_FIREBOMB:      firstCode =  60; break;
+		case MI_114_FLASK_OF_LIGHTNINGBOMB: firstCode =  80; break;
+		case MI_115_FLASK_OF_ACIDBOMB:      firstCode = 100; break;
+		case MI_118_FLASK_OF_ARCANEBOMB:    firstCode = 120; break;
+		}
+		flaskCode = firstCode + std::min( SummonOwnerLevel( casterIndex ) / 6, 9 );
+		const FlaskInfo& flaskInfo = FlasksInfo[ flaskCode ];
+		const double maxThrowDistance = flaskInfo.MaxFlaskThrowDistance;
+		if( distance < 1. ) distance = 1.;
+		if( distance > maxThrowDistance ) distance = maxThrowDistance;
+		spellSpeed = static_cast<int>( distance * 3.8 );
+	}
 	
 	SetMissileMovementDelta(missileIndex, casterRow, casterCol, targetRow, targetCol, spellSpeed);
 
@@ -11318,6 +11487,11 @@ void __fastcall ActFlaskThrow( int missileIndex)//, int playerIndex )
 {
 	//Player& player = Players[playerIndex];
 	Missile& missile = Missiles[missileIndex];
+	if( IsMainDraw && IsOrphanedSummonMissile( missile ) ){ // (thmod) her bomb goes with the Bombardier
+		if( missile.LightIndex >= 0 ) LightOff( missile.LightIndex );
+		missile.IsDeleted = true;
+		return;
+	}
     if( ! IsMainDraw ) goto motion;
 
 	
@@ -11420,17 +11594,23 @@ void __fastcall ActFlaskThrow( int missileIndex)//, int playerIndex )
             }
             
             if( dotEffectIndex != -1 ){
-                int damage = RngFromRange(minDamage, maxDamage) * ( flaskInfo.DamageOverTimePercentage + PerkValue(PERK_BURN_IN_HELL, missile.CasterIndex) ) / 100;
+                int damage = RngFromRange(minDamage, maxDamage) * ( flaskInfo.DamageOverTimePercentage + ( missile.CasterType == CT_0_PLAYER ? PerkValue(PERK_BURN_IN_HELL, missile.CasterIndex) : 0 ) ) / 100; // (thmod) a monster has no perks
                 damage <<= 6; // To compensate per frame damage
+                if( missile.CasterType != CT_0_PLAYER ){
+                    // (thmod) a monster's puddle hits through MvM_Ranged on EVERY frame of its life, with no
+                    // per-frame scaling: spread the total over the frames, so a puddle does its 31-40%
+                    // of the flask damage in all rather than that much per frame.
+                    damage /= std::max( flaskInfo.DamageOverTimeDuration, 1 );
+                }
 				PoolOverTime = overTime;
-                CastMissile( effectRow, effectCol, effectRow, effectCol, 0, dotEffectIndex, CT_0_PLAYER, missile.CasterIndex, damage, -flaskInfo.DamageOverTimeDuration , missile.spellIndex );
+                CastMissile( effectRow, effectCol, effectRow, effectCol, 0, dotEffectIndex, missile.CasterType /* (thmod) was CT_0_PLAYER */, missile.CasterIndex, damage, -flaskInfo.DamageOverTimeDuration , missile.spellIndex );
             }else{
                 // Explosion effect
                 int monsterNumber = MonsterMap[effectRow][effectCol];
                 if( monsterNumber ){
                     int monsterIndex = abs(monsterNumber) - 1;
                     const Monster& monster = Monsters[monsterIndex];
-                    if( IsPlayerAutoTarget( monsterIndex ) && !IsMonsterImmuneToMissile( monsterIndex, damageType, missile.CasterIndex ) ){
+                    if( IsPlayerAutoTarget( monsterIndex ) && !IsMonsterImmuneToMissile( monsterIndex, damageType, MissileOwnerPlayer( missile ) ) ){ // (thmod) owner, not a monster index
                         KnockbackMonster( monsterIndex, OrientationToTarget( monster.Row, monster.Col, missile.CasterRow, missile.CasterCol ), GameMode == GM_HARD ? 1 : 2 );
                     }
                 }
@@ -11476,6 +11656,14 @@ void __fastcall CastTrapThrow( int missileIndex, int casterRow, int casterCol, i
   	int& minDamage = missile.value[2];
   	int& maxDamage = missile.value[3];
     int& trapCode = missile.value[4];
+	// (thmod) SIEGEMASTER: the Trapper throws at the spot she picked around the Guardian, not at her target
+	if( casterType == CT_1_MONSTER_AND_TRAP ){
+		int spotRow, spotCol;
+		if( SiegeTakeTrapSpot( casterIndex, spotRow, spotCol ) ){
+			targetRow = spotRow;
+			targetCol = spotCol;
+		}
+	}
 	
 	if( casterRow == targetRow && casterCol == targetCol ){
 		targetRow += RowDelta[casterDirection];
@@ -11522,6 +11710,18 @@ void __fastcall CastTrapThrow( int missileIndex, int casterRow, int casterCol, i
 		if( distance > MaxTrapThrowDistance) distance = MaxTrapThrowDistance;
 		spellSpeed = static_cast<int>( distance * 5.0 );
     }
+	else if( casterType == CT_1_MONSTER_AND_TRAP && (uint) casterIndex < Monsters_Max_Count ) // (thmod) SIEGEMASTER Trapper
+	{
+		const Monster& thrower = Monsters[ casterIndex ];
+		minDamage = thrower.MinDamage;
+		maxDamage = thrower.MaxDamage;
+		trapCode = std::min( SummonOwnerLevel( casterIndex ) / 5, 10 ); // fast traps 0-10 (TrapsInfo.cpp)
+		const TrapInfo& trapInfo = TrapsInfo[ trapCode ];
+		const double maxThrowDistance = trapInfo.MaxTrapThrowDistance;
+		if( distance < 1. ) distance = 1.;
+		if( distance > maxThrowDistance ) distance = maxThrowDistance;
+		spellSpeed = static_cast<int>( distance * 5.0 );
+	}
 	
 	SetMissileMovementDelta(missileIndex, casterRow, casterCol, targetRow, targetCol, spellSpeed);
 
@@ -11731,11 +11931,11 @@ int __fastcall AttackCellByTrapperTrap( int missileIndex, int row, int col )
 		if( monsterNumber > 0 ){
 			int monsterIndex = monsterNumber - 1;
 			Monster& monster = Monsters[monsterIndex];
-			if( !IsMonsterImmuneToMissile(monsterIndex, ET_0_PHYSICAL, missile.CasterIndex) && IsPlayerAutoTarget( monsterIndex ) ){ // (rt) not a golem
+			if( !IsMonsterImmuneToMissile(monsterIndex, ET_0_PHYSICAL, MissileOwnerPlayer( missile )) && IsPlayerAutoTarget( monsterIndex ) ){ // (thmod) owner // (rt) not a golem
 				int orientation = OrientationToTarget(missile.Row, missile.Col, row, col);
 				int damage = RngFromRange( missile.CasterRow, missile.CasterCol);
 				const TrapInfo& trapInfo = TrapsInfo[missile.SpellLevel];
-				CastMissile(missile.Row, missile.Col, row, col, orientation, trapInfo.MissileIndex, CT_0_PLAYER, missile.CasterIndex, damage, missile.SpellLevel, missile.spellIndex );
+				CastMissile(missile.Row, missile.Col, row, col, orientation, trapInfo.MissileIndex, missile.CasterType /* (thmod) was CT_0_PLAYER: a Trapper minion's turret shoots as her */, missile.CasterIndex, damage, missile.SpellLevel, missile.spellIndex );
 				isFindTarget = -1;
 			}
         }
@@ -11749,6 +11949,9 @@ void __fastcall ActTrapperTrap(int missileIndex)
 	if( !IsMainDraw ) return;
 	Missile& missile = Missiles[missileIndex];
 	const TrapInfo& trapInfo = TrapsInfo[missile.SpellLevel];
+	if( IsOrphanedSummonMissile( missile ) && missile.TimeToLive > 1 ){
+		missile.TimeToLive = 1; // (thmod) her traps go with the Trapper
+	}
 	
     --missile.TimeToLive;
 	
@@ -11804,6 +12007,10 @@ void __fastcall CastTrapperTrapArrow(int missileIndex, int casterRow, int caster
 void __fastcall ActTrapperTrapArrow( int missileIndex )
 {
     Missile& missile = Missiles[ missileIndex ];
+    if( IsMainDraw && IsOrphanedSummonMissile( missile ) ){ // (thmod) a dead Trapper's arrows stop
+        missile.IsDeleted = true;
+        return;
+    }
     if( ! IsMainDraw ) goto motion;
     missile.TimeToLive--;
     missile.Distance++;

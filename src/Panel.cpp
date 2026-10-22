@@ -96,6 +96,9 @@ __forceinline void FormatedOutputPlayerSkillString(int currentSpellNumber, int h
 	if (currentSpellNumber == PS_52_LESSER_SUMMON && HasTrait(CurrentPlayerIndex, TraitId::Warlord)) {
 		skillName = "Mercenaries";
 	}
+	else if (is(currentSpellNumber, PS_52_LESSER_SUMMON, PS_53_COMMON_SUMMON) && IsSiegemaster(CurrentPlayerIndex)) { // (thmod)
+		skillName = currentSpellNumber == PS_52_LESSER_SUMMON ? "Bombardier" : "Trapper";
+	}
 
 	if (help) {
 		sprintf(InfoPanelBuffer, L("%s Skill"), LocalizedSpell(skillName));  // (rt) ← skillName here, not Spells[...]

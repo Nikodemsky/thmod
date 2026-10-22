@@ -191,6 +191,10 @@ void GetDungeonMonsterTypes() // GetLevelMTypes
 	AddMonsterTypeToDungeon(BM_230_BEASTMASTER_SUMMON_2, MPF_2_DONT);
 	AddMonsterTypeToDungeon(BM_231_BEASTMASTER_SUMMON_3, MPF_2_DONT);
 	AddMonsterTypeToDungeon(BM_392_WARLORD_MERC, MPF_2_DONT);
+	if( IsSiegemaster(CurrentPlayerIndex) ){ // (thmod) loaded only when someone can summon them: a level holds 40 sprite types
+		AddMonsterTypeToDungeon(BM_424_SIEGE_BOMBARDIER, MPF_2_DONT);
+		AddMonsterTypeToDungeon(BM_425_SIEGE_TRAPPER, MPF_2_DONT);
+	}
 	
 	switch( Dungeon->level ){ // TODO: check for DUNGEON id needing instead of Dungeon->level
 	case DUN_2_CHURCH_2:
@@ -464,7 +468,11 @@ void __fastcall LoadMonsterAnimation(int monsterSpriteIndex)
 		char animType = TypeOfAnimation[animationIndex];
 		if( (animType != 's' || baseMonster.HasSecondAttack) && frameCount > 0 ){
 			char animFileName[256];
-			sprintf(animFileName, baseMonster.AnimationFileName, animType);
+			if( const char* siegeFile = SiegeMinionAnimFile(baseMonsterIndex, animationIndex) ){ // (thmod) player art
+				strcpy(animFileName, siegeFile);
+			}else{
+				sprintf(animFileName, baseMonster.AnimationFileName, animType);
+			}
 			char* anim = (char*)LoadFile(animFileName);
 			monsterAnim.animPtr = anim;
 			if( monsterSprite.baseMonsterIndex != BM_109_GOLEM || animType != 's' && animType != 'd' ){
@@ -4032,6 +4040,10 @@ void __fastcall AddQuestMonsters(ushort* dunData, int startRow, int startCol) //
         AddMonsterTypeToDungeon(BM_230_BEASTMASTER_SUMMON_2, MPF_2_DONT);
         AddMonsterTypeToDungeon(BM_231_BEASTMASTER_SUMMON_3, MPF_2_DONT);
 		AddMonsterTypeToDungeon(BM_392_WARLORD_MERC, MPF_2_DONT);
+		if( IsSiegemaster(CurrentPlayerIndex) ){ // (thmod) same rule as in GetDungeonMonsterTypes
+			AddMonsterTypeToDungeon(BM_424_SIEGE_BOMBARDIER, MPF_2_DONT);
+			AddMonsterTypeToDungeon(BM_425_SIEGE_TRAPPER, MPF_2_DONT);
+		}
      
         for( int playerIndex = 0; playerIndex < PlayersMax_4; ++playerIndex ){
             for( int summonIndex = 0; summonIndex < SummonMonstersPerPlayer_Count; ++summonIndex ){
@@ -11489,6 +11501,187 @@ void __fastcall Ai_7_Goat_Archer(uint monsterIndex)
 	RangerRetreatsOften(monsterIndex, MI_0_NONE_ARROW, 0);
 }
 
+//----- (thmod) SIEGEMASTER ------------------------------------------------
+// Two minions of the Guardian's Siegemaster trait (single player). Both are summons, so Ai_Summon
+// runs these only while they have a target, and makes them follow the Guardian otherwise.
+
+bool IsSiegeMinion( int baseMonsterIndex )
+{
+	return baseMonsterIndex == BM_424_SIEGE_BOMBARDIER || baseMonsterIndex == BM_425_SIEGE_TRAPPER;
+}
+
+// They are drawn from the PLAYER sheets, one file per animation (ANIM_0_STAY .. ANIM_5_SECOND).
+// Players have a death sheet only in the unarmed set, hence ?LNDT. The summon's appear animation
+// (ANIM_5_SECOND, played by AwakeSummon) reuses the stand sheet.
+const char* SiegeMinionAnimFile( int baseMonsterIndex, int animationIndex )
+{
+	static const char* const bombardier[ 6 ] = {
+		"PlrGFX\\Assassin\\ALU\\ALUAS.CL2", "PlrGFX\\Assassin\\ALU\\ALUAW.CL2", "PlrGFX\\Assassin\\ALU\\ALUAT.CL2",
+		"PlrGFX\\Assassin\\ALU\\ALUHT.CL2", "PlrGFX\\Assassin\\ALN\\ALNDT.CL2", "PlrGFX\\Assassin\\ALU\\ALUAS.CL2" };
+	static const char* const trapper[ 6 ] = {
+		"PlrGFX\\Rogue\\RLU\\RLUAS.CL2", "PlrGFX\\Rogue\\RLU\\RLUAW.CL2", "PlrGFX\\Rogue\\RLU\\RLUAT.CL2",
+		"PlrGFX\\Rogue\\RLU\\RLUHT.CL2", "PlrGFX\\Rogue\\RLN\\RLNDT.CL2", "PlrGFX\\Rogue\\RLU\\RLUAS.CL2" };
+	if( (uint) animationIndex >= 6 ) return nullptr;
+	switch( baseMonsterIndex ){
+	case BM_424_SIEGE_BOMBARDIER: return bombardier[ animationIndex ];
+	case BM_425_SIEGE_TRAPPER:    return trapper[ animationIndex ];
+	}
+	return nullptr;
+}
+
+// Base stats before the affix / perk bonuses MakeGolem adds on top (the same ones every summon
+// gets). Scaled by the Guardian's character level, like the Warlord's mercenaries. Concept
+// numbers, to be balanced together with the perks.
+void SiegeMinionStatRange( int baseMonsterIndex, int clvl, SiegeMinionStats& lo, SiegeMinionStats& hi )
+{
+	const int sq = clvl * clvl;
+	if( baseMonsterIndex == BM_425_SIEGE_TRAPPER ){
+		// Her damage is per trap arrow, and up to SiegeTrapperMaxTraps traps shoot at once.
+		lo.life       = ( 50 + 4 * clvl + sq / 6 ) << 6;	hi.life       = lo.life + ( ( 10 + 3 * clvl ) << 6 );
+		lo.toHit      = 20 + 2 * clvl + sq / 42;				hi.toHit      = lo.toHit + 5;
+		lo.minDamage  = 1 + clvl / 3 + sq / 150;			hi.minDamage  = lo.minDamage + 2;
+		lo.maxDamage  = hi.minDamage + 2 + clvl / 2 + sq / 120;	hi.maxDamage  = lo.maxDamage + 4;
+		lo.armorClass = 2 + clvl + sq / 60;					hi.armorClass = lo.armorClass + 5;
+	}else{
+		// BM_424_SIEGE_BOMBARDIER: support, not a damage dealer. The flask hits the 9 cells around the
+		// target for full damage and leaves acid puddles there (FlasksInfo 40-49: 31-40% more, over
+		// 57 frames). Roughly half of what she had with the explosive bombs.
+		lo.life       = ( 60 + 4 * clvl + sq / 5 ) << 6;	hi.life       = lo.life + ( ( 10 + 4 * clvl ) << 6 );
+		lo.toHit      = 20 + 2 * clvl + sq / 42;				hi.toHit      = lo.toHit + 5;
+		lo.minDamage  = 1 + clvl / 4 + sq / 200;			hi.minDamage  = lo.minDamage + 2;
+		lo.maxDamage  = hi.minDamage + 2 + clvl / 2 + sq / 140;	hi.maxDamage  = lo.maxDamage + 3;
+		lo.armorClass = 2 + 3 * clvl / 2 + sq / 60;			hi.armorClass = lo.armorClass + 5;
+	}
+}
+
+// Bombardier: a support ranger throwing acid flasks (MI_112) that leave acid puddles. A flask thrown
+// past its reach drops short, so she first walks in to SiegeBombThrowRange; from there the ordinary
+// ranger rules apply (she keeps her distance and backs off when pressed).
+void __fastcall Ai_61_Siege_Bombardier(uint monsterIndex)
+{
+	if( monsterIndex >= Monsters_Max_Count ) return;
+	Monster& monster = Monsters[monsterIndex];
+	if( monster.CurAction ) return;
+	if( monster.ActivationCounter && (monster.flag & MF_5_TARGET_MONSTER)
+	 && !Distance_To_Target_Is_Less_Than(monsterIndex, SiegeBombThrowRange + 1) ){
+		if( MonsterWalksTowardsTarget(monsterIndex, MonsterOrientationToTarget(monsterIndex)) ) return;
+	}
+	RangerRetreatsOften(monsterIndex, MI_112_FLASK_OF_ACID, 0);
+}
+
+// Trapper: keeps a full set of SiegeTrapperMaxTraps traps around the Guardian while he is in a
+// fight -- an awake hostile monster within SiegeCombatRadius of him (outside a fight she lays
+// none, for now). Spots lie on a ring of SiegeTrapRingRadius around him, in the direction farthest
+// from the traps already set; traps left more than SiegeTrapLeashRadius behind him start fading,
+// so the set moves along with him. The spot is handed to CastTrapThrow by SiegeTakeTrapSpot.
+struct SiegeTrapSpotInfo { int row, col; bool set; };
+static SiegeTrapSpotInfo SiegeTrapSpot[ SummonMonsters_Count ];
+
+bool SiegeTakeTrapSpot( int trapperIndex, int& row, int& col )
+{
+	if( (uint) trapperIndex >= SummonMonsters_Count || !SiegeTrapSpot[ trapperIndex ].set ) return false;
+	row = SiegeTrapSpot[ trapperIndex ].row;
+	col = SiegeTrapSpot[ trapperIndex ].col;
+	SiegeTrapSpot[ trapperIndex ].set = false;
+	return true;
+}
+
+static bool SiegeOwnerInCombat( const Player& owner )
+{
+	for( int i = 0; i < MonstersCount; ++i ){
+		const int monsterIndex = MonsterIndexes[ i ];
+		if( monsterIndex < SummonMonsters_Count ) continue;
+		const Monster& monster = Monsters[ monsterIndex ];
+		if( !monster.ActivationCounter || (monster.flag & MF_6_FRIENDLY) || (monster.CurrentLife & ~63) <= 0
+		 || monster.CurAction == A_6_DEATH ) continue;
+		if( abs( monster.Row - owner.Row ) <= SiegeCombatRadius && abs( monster.Col - owner.Col ) <= SiegeCombatRadius ) return true;
+	}
+	return false;
+}
+
+// true when she started doing something (walking towards a spot or throwing a trap)
+bool SiegeTrapperLayTrap( int monsterIndex )
+{
+	if( (uint) monsterIndex >= SummonMonsters_Count ) return false;
+	Monster& trapper = Monsters[ monsterIndex ];
+	if( !trapper.SpritePtr || trapper.SpritePtr->baseMonsterIndex != BM_425_SIEGE_TRAPPER || trapper.CurAction != A_0_STAY ) return false;
+	const int ownerIndex = monsterIndex / SummonMonstersPerPlayer_Count;
+	if( !IsSiegemaster( ownerIndex ) || Dungeon == DUN_0_TOWN ) return false;
+	const Player& owner = Players[ ownerIndex ];
+	if( !SiegeOwnerInCombat( owner ) ) return false;
+
+	int setRow[ SiegeTrapperMaxTraps ], setCol[ SiegeTrapperMaxTraps ];
+	int setCount = 0, total = 0;
+	for( int i = 0; i < MissileAmount; ++i ){
+		Missile& missile = Missiles[ MissileIndexes[ i ] ];
+		if( missile.IsDeleted || missile.CasterType != CT_1_MONSTER_AND_TRAP || missile.CasterIndex != monsterIndex ) continue;
+		if( missile.BaseMissileIndex == MI_119_TRAP_OF_ARROWS ){ ++total; continue; } // still in the air
+		if( missile.BaseMissileIndex != MI_120_TRAPPER_GUN || missile.TimeToLive <= 15 ) continue;
+		if( abs( missile.Row - owner.Row ) > SiegeTrapLeashRadius || abs( missile.Col - owner.Col ) > SiegeTrapLeashRadius ){
+			missile.TimeToLive = 15; // left behind: let it fade (ActTrapperTrap counts down to 0)
+			continue;
+		}
+		if( setCount < SiegeTrapperMaxTraps ){ setRow[ setCount ] = missile.Row; setCol[ setCount ] = missile.Col; ++setCount; }
+		++total;
+	}
+	if( total >= SiegeTrapperMaxTraps ) return false;
+
+	int bestRow = -1, bestCol = -1, bestScore = -1;
+	const int firstDir = RNG( 8 );
+	for( int k = 0; k < 8; ++k ){
+		const int dir = ( firstDir + k ) % 8;
+		const int row = owner.Row + RowDelta[ dir ] * SiegeTrapRingRadius;
+		const int col = owner.Col + ColDelta[ dir ] * SiegeTrapRingRadius;
+		if( !To112( row, col ) || TileBlockWalking[ FineMap[ row ][ col ] ] || !CheckCastInSight( owner.Row, owner.Col, row, col ) ) continue;
+		int score = 100; // distance to the nearest trap already set
+		for( int t = 0; t < setCount; ++t ){
+			score = std::min( score, std::max( abs( row - setRow[ t ] ), abs( col - setCol[ t ] ) ) );
+		}
+		if( score > bestScore ){ bestScore = score; bestRow = row; bestCol = col; }
+	}
+	if( bestRow < 0 ) return false;
+
+	const int orientation = OrientationToTarget( trapper.Row, trapper.Col, bestRow, bestCol );
+	if( std::max( abs( trapper.Row - bestRow ), abs( trapper.Col - bestCol ) ) > SiegeTrapThrowReach
+	 && MonsterWalksTowardsTarget( monsterIndex, orientation ) ){
+		return true; // out of throwing reach: walk in first
+	}
+	SiegeTrapSpot[ monsterIndex ] = { bestRow, bestCol, true };
+	// StartMonsterRangedAttack, but facing the spot rather than her target (she may have none)
+	SetMonsterAnimation( monsterIndex, &trapper.SpritePtr->animation[ ANIM_2_ATTACK ], orientation );
+	trapper.CurAction = A_10_RANGED;
+	trapper.PrevActionOrRowDeltaOrSpellEffect = MI_119_TRAP_OF_ARROWS;
+	trapper.TimerCounterOrColDeltaOrSpellDamage = 0;
+	trapper.DeltaX = 0;
+	trapper.DeltaY = 0;
+	trapper.NextRow = trapper.Row;
+	trapper.NextCol = trapper.Col;
+	trapper.PrevRow = trapper.Row;
+	trapper.PrevCol = trapper.Col;
+	trapper.Orientation = orientation;
+	CheckMonsterUnderArch( monsterIndex );
+	return true;
+}
+
+// Trapper: she does not attack. Laying the traps is SiegeTrapperLayTrap's job (run from Ai_Summon,
+// so it works with or without a target of her own); here, with the set complete or no spot to
+// fill, she only keeps her distance from her target. Her traps go with her when she dies.
+void __fastcall Ai_62_Siege_Trapper(uint monsterIndex)
+{
+	if( monsterIndex >= Monsters_Max_Count ) return;
+	Monster& monster = Monsters[monsterIndex];
+	if( monster.CurAction ) return;
+	if( monster.ActivationCounter && (monster.flag & MF_5_TARGET_MONSTER) ){
+		const int orientation = MonsterOrientationToTarget(monsterIndex);
+		monster.Orientation = orientation;
+		if( Distance_To_Target_Is_Less_Than(monsterIndex, 4)
+		 && MonsterWalksTowardsTarget(monsterIndex, OrientInverted[orientation]) ){
+			return;
+		}
+		MonsterStartDelay(monsterIndex, 10); // stand (idle animation) and look again shortly
+	}
+}
+
 //----- (new) --------------------------------------------------------
 void __fastcall Ai_41_RangerRetreatsOften_ColdSnakes(uint monsterIndex)
 {
@@ -12396,6 +12589,11 @@ void __fastcall Ai_Summon( uint monsterIndex, AiFunc* original )
     if( !monster.ActivationCounter ){
         monster.ActivationCounter = 255;
         MonsterLookAround(monsterIndex);
+    }
+    
+    // (thmod) SIEGEMASTER: the Trapper keeps her traps around the Guardian in a fight, target or not
+    if( SiegeTrapperLayTrap( monsterIndex ) ){
+        return;
     }
     
     // (th4) WARLORD MERCS FOLLOW THEIR OWNER WHEN THEY HAVE NOTHING TO FIGHT.
@@ -16035,6 +16233,22 @@ void __fastcall MakeGolem( unsigned int summonIndex, int row, int col, int spell
 	}
 	// =========================================
 
+	// (thmod) SIEGEMASTER: Lesser Summon brings the Bombardier, Common Summon the Trapper.
+	if( IsSiegemaster(ownerIndex) && is(missile.BaseMissileIndex, MI_122_LESSER_SUMMON, MI_123_COMMON_SUMMON) ){
+		const int wanted = missile.BaseMissileIndex == MI_122_LESSER_SUMMON ? BM_424_SIEGE_BOMBARDIER : BM_425_SIEGE_TRAPPER;
+		int foundIdx = -1;
+		for( int i = 0; i < MonsterSpritesCount; i++ ){
+			if( MonsterSprites[i].baseMonsterIndex == wanted ){
+				foundIdx = i;
+				break;
+			}
+		}
+		if( foundIdx == -1 ){
+			return; // not loaded on this level: summon nothing rather than an imp in her place
+		}
+		spriteIndex = foundIdx;
+	}
+
     params.spriteIndex = spriteIndex;
     
     int summonType = 0;
@@ -16266,6 +16480,22 @@ void __fastcall MakeGolem( unsigned int summonIndex, int row, int col, int spell
 			minDamageSecond = minDamage;
 			maxDamageSecond = maxDamage;
 			armorClass = 2 * mercLevel + (mercLevel * mercLevel / 50) + 2 + RNG(6);
+			break;
+		}
+		case BM_424_SIEGE_BOMBARDIER: // (thmod) SIEGEMASTER -- rolled inside SiegeMinionStatRange
+		case BM_425_SIEGE_TRAPPER:
+		{
+			SiegeMinionStats lo, hi;
+			SiegeMinionStatRange( MonsterSprites[spriteIndex].baseMonsterIndex, clvl, lo, hi );
+			auto roll = []( int low, int high ){ return low + RNG( high - low + 1 ); };
+			summonLife = roll( lo.life, hi.life );
+			toHit = roll( lo.toHit, hi.toHit );
+			minDamage = roll( lo.minDamage, hi.minDamage );
+			maxDamage = roll( lo.maxDamage, hi.maxDamage );
+			toHitSecond = toHit;
+			minDamageSecond = minDamage;
+			maxDamageSecond = maxDamage;
+			armorClass = roll( lo.armorClass, hi.armorClass );
 			break;
 		}
 		case BM_109_GOLEM:

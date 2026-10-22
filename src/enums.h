@@ -3541,6 +3541,8 @@ enum COOLDOWN_TYPE : char
 	CD_STONE,
 	CD_APOCALYPSE,
 	CD_FORCEWAVE,
+	CD_SIEGE_BOMBARDIER,	// (thmod) Siegemaster: summon Bombardier
+	CD_SIEGE_TRAPPER,		// (thmod) Siegemaster: summon Trapper
 	//CD_MERC,
     
     CD_COUNT,
@@ -4191,6 +4193,9 @@ enum BASE_MONSTER : int
 	BM_H_421_WAR_H_X_EXEC_ELITE = 421,
 	BM_H_422_WAR_H_ROYAL_GUARD = 422,
 	BM_H_423_ROG_H_B_BLACK_ARCHER = 423,
+	// (thmod) SIEGEMASTER minions -- drawn from the player Bombardier / Trapper graphics
+	BM_424_SIEGE_BOMBARDIER = 424,
+	BM_425_SIEGE_TRAPPER = 425,
 	BM_COUNT,
 };
 
@@ -5928,6 +5933,7 @@ enum class TraitId : unsigned char
 	Warlord,
 	RawPower,
 	Thief,			// (th4) v0.500 Sharpshooter stealth trait (SP only)
+	Siegemaster,		// (thmod) Guardian: summons a Bombardier and a Trapper to fight for him (SP only)
     TRAIT_COUNT
 };
 
@@ -8294,6 +8300,8 @@ enum AI: uchar
 	AI_58_Mixed_Psychic_Bite        = 58,// Floater uses this attack
 	AI_59_Tentaclist                = 59,
 	AI_60_Invisible_Stalker			= 60, // th4: instant-hide circler, spit/charge 50/50, melee-locks <=50% HP
+	AI_61_Siege_Bombardier          = 61, // (thmod) Siegemaster minion: throws acid bombs, keeps its distance
+	AI_62_Siege_Trapper             = 62, // (thmod) Siegemaster minion: lays arrow traps (max 4 at once), keeps its distance
 	AI_count
 };
 
@@ -8911,6 +8919,13 @@ enum PERKS
 	SYNERGY_COMBAT_LOGS		 = 481,
 	SYNERGY_REGENERATION	 = 482,
 	SYNERGY_ONE_MORE		 = 483,
+	// (thmod) HYDRAMANCER SYNERGIES (the only synergies a Hydramancer can take, see PerkAvailable)
+	SYNERGY_HEAD_OF_THE_DRAGON   = 484,
+	SYNERGY_GLANCE_OF_DESTRUCTION = 485,
+	SYNERGY_REAPERS_SIGHT        = 486,
+	SYNERGY_FLAME_SCULPTING      = 487,
+	SYNERGY_CONJURATION_OVERLOAD = 488,
+	SYNERGY_WYVERN_WHISPERER     = 489,
 	PERKS_SYNERGY,
 
 	/* ------------------------
