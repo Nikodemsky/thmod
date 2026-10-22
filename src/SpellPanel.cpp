@@ -97,6 +97,7 @@ PLAYER_SPELL LearnedSpells(int page, int line)
 		else if ( HasTrait(CurrentPlayerIndex, TraitId::Hydramancer)) spell = PS_13_HYDRA;
 		else if (HasTrait(CurrentPlayerIndex, TraitId::Paladin)) spell = PS_11_MANA_SHIELD;
 		else if (HasTrait(CurrentPlayerIndex, TraitId::Warlord)) spell = PS_52_LESSER_SUMMON;		
+		else if (IsSiegemaster(CurrentPlayerIndex)) spell = PS_52_LESSER_SUMMON; // (thmod) Bombardier; the Trapper sits on page 5 with the summons
 		//else if (player.fullClassId == PFC_WARLOCK) spell = PS_13_HYDRA;
 		break;
 	// (thmod) INQUISITOR'S FAVOUR: the Warlock's acid row holds his holy spells instead (moved, not doubled: page 4 drops them)
@@ -420,6 +421,29 @@ void WriteSummonSpellBookInfo(PLAYER_SPELL minionTypeSpell, int LINE_HEIGHT, int
 					break;
 				}
 			}
+			break;
+		case PFC_GUARDIAN: // (thmod) SIEGEMASTER -- same numbers as MakeGolem (SiegeMinionStatRange)
+			if (IsSiegemaster(CurrentPlayerIndex) && is(minionTypeSpell, PS_52_LESSER_SUMMON, PS_53_COMMON_SUMMON)) {
+				const int bm = minionTypeSpell == PS_52_LESSER_SUMMON ? BM_424_SIEGE_BOMBARDIER : BM_425_SIEGE_TRAPPER;
+				SiegeMinionStats lo, hi;
+				SiegeMinionStatRange(bm, clvl, lo, hi);
+				minLife = lo.life;				maxLife = hi.life;
+				minAccuracyFirst = lo.toHit;	maxAccuracyFirst = hi.toHit;
+				minMinDamageFirst = lo.minDamage;	maxMinDamageFirst = hi.minDamage;
+				minMaxDamageFirst = lo.maxDamage;	maxMaxDamageFirst = hi.maxDamage;
+				minArmor = lo.armorClass;		maxArmor = hi.armorClass;
+				if (minionTypeSpell == PS_52_LESSER_SUMMON) {
+					drawLine(L("summons a Bombardier"));
+					drawLine(L("who leaves acid puddles"));
+				}
+				else {
+					sprintf(InfoPanelBuffer, L("summons a Trapper who keeps"));
+					drawLine(InfoPanelBuffer);
+					sprintf(InfoPanelBuffer, L("%i arrow traps around you"), SiegeTrapperMaxTraps);
+					drawLine(InfoPanelBuffer);
+				}
+			}
+			break;
 	}
 	if (minionTypeSpell != PS_21_GOLEM) {
 		sprintf(InfoPanelBuffer, L("to fight enemies for you"));

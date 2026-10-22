@@ -897,7 +897,9 @@ const char* getSpellNameNominative( int spell ) // (th4) nominative-case wrapper
 const char* getSpellName_en( int spell )
 {
 	auto& fc = Players[CurrentPlayerIndex].fullClassId;
-	if( spell >= PS_52_LESSER_SUMMON && spell <= PS_54_GREATER_SUMMON && fc >= PFC_DEMONOLOGIST && fc <= PFC_BEASTMASTER ){
+	if( is(spell, PS_52_LESSER_SUMMON, PS_53_COMMON_SUMMON) && IsSiegemaster(CurrentPlayerIndex) ){ // (thmod)
+		return spell == PS_52_LESSER_SUMMON ? "Bombardier" : "Trapper";
+	}else if( spell >= PS_52_LESSER_SUMMON && spell <= PS_54_GREATER_SUMMON && fc >= PFC_DEMONOLOGIST && fc <= PFC_BEASTMASTER ){
 		return SummonerSpellsNames[fc - PFC_DEMONOLOGIST][spell - PS_52_LESSER_SUMMON];
 	}else if( spell == PS_3_LIGHTNING && (PerkValue(PERK_CHAIN_LIGHTNING, CurrentPlayerIndex ) || GameMode == GM_CLASSIC) ){
 		return "Chain Lightning";
@@ -930,6 +932,10 @@ int getSpellIcon( int spell )
 	auto& fc = Players[CurrentPlayerIndex].fullClassId;
 	if (fc == PFC_INQUISITOR && MaxCountOfPlayersInGame == 1 && HasTrait(CurrentPlayerIndex, TraitId::Warlord) && spell == PS_52_LESSER_SUMMON) {
 		return 239;
+	}
+	else if (is(spell, PS_52_LESSER_SUMMON, PS_53_COMMON_SUMMON) && IsSiegemaster(CurrentPlayerIndex)) { // (thmod) placeholders B1 / T1
+		return spell == PS_52_LESSER_SUMMON ? SiegeSpellIcon(SiegeIconBombardier, Spells[spell].Icon)
+		                                    : SiegeSpellIcon(SiegeIconTrapper, Spells[spell].Icon);
 	}
 	else if( spell >= PS_52_LESSER_SUMMON && spell <= PS_54_GREATER_SUMMON && fc >= PFC_DEMONOLOGIST && fc <= PFC_BEASTMASTER ){
 		return SummonerSpellIconIndexes[fc - PFC_DEMONOLOGIST][spell - PS_52_LESSER_SUMMON];

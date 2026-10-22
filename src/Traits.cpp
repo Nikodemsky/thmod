@@ -94,7 +94,8 @@ enum TRAIT_GROUP_MASK : uint64_t
     TGM_CAPITAL             = BIT(57),
     TGM_DEVAS               = BIT(58),
     TGM_WARLORD             = BIT(59),
-    TGM_RAWPOWER            = BIT(60)
+    TGM_RAWPOWER            = BIT(60),
+    TGM_SIEGEMASTER         = BIT(61)  // (thmod)
 
 };
 bit_enum( TRAIT_GROUP_MASK );
@@ -164,7 +165,8 @@ std::vector TraitsExcludedCombinations = {
     TGM_RAWPOWER         | TGM_SYNS_DOWN,
     TGM_RAWPOWER         | TGM_SYNS_UP,
     TGM_RAWPOWER         | TGM_PERK_POINTS_UP,
-    TGM_RAWPOWER         | TGM_PERK_POINTS_DOWN
+    TGM_RAWPOWER         | TGM_PERK_POINTS_DOWN,
+    TGM_SIEGEMASTER      | TGM_PISTOL   // (thmod) Siegemaster and Pistoleer exclude each other
 
 };
 
@@ -324,6 +326,7 @@ const char* GetTraitName( TraitId id )
         case TraitId::Warlord:          return "Warlord";
         case TraitId::RawPower:  		return "Raw Power";
         case TraitId::Thief:  		    return "Thief";
+        case TraitId::Siegemaster:      return "Siegemaster";       // (thmod)
     }
 }
 
@@ -446,6 +449,7 @@ const char* GetTraitBenefitDescription( TraitId id )
     case TraitId::Warlord:		    return  "summon Mercenaries to fight by your side";
     case TraitId::RawPower:  		return  "Sigils have 10x power";
     case TraitId::Thief:  		    return  "hides in darkness, increased damage vs unaware monsters, chain activation radius reduced by 1";
+    case TraitId::Siegemaster:      return  "summon a Bombardier and a Trapper to fight by your side"; // (thmod)
     }
 }
 
@@ -568,6 +572,7 @@ const char* GetTraitPenaltyDescription( TraitId id )
     case TraitId::Warlord:  		return  "making Mercenaries stronger costs perk points";
     case TraitId::RawPower:  		return  "Perks and Synergies are unavailable";
     case TraitId::Thief:  		    return  "basic combat powers reduced: base damage is halved, increased autohit, melee/arrow damage resistance caps reduced by 15";
+    case TraitId::Siegemaster:      return  "the Item Repair skill is replaced by the summons, cannot be a Pistoleer"; // (thmod) placeholder, to be balanced
     }
 }
 
@@ -721,6 +726,7 @@ int GetTraitSpellIcon( TraitId id )
         case TraitId::Warlord:  		return 239;
         case TraitId::RawPower:  		return 248;
         case TraitId::Thief:  		    return 99;
+        case TraitId::Siegemaster:      return SiegeSpellIcon( SiegeIconTrait, 239 ); // (thmod) Warlord icon until SpelIcon.CEL is extended
     }
 }
 
@@ -949,6 +955,7 @@ uint GetRequiredClassMaskForTrait( TraitId id )
         case TraitId::Warlord:  		    return IPCM_INQUISITOR;
         case TraitId::RawPower:  		    return IPCM_GLADIATRIX;
         case TraitId::Thief:  		        return IPCM_SHARPSHOOTER; // (th4) based on Sharpshooter only
+        case TraitId::Siegemaster:          return IPCM_GUARDIAN; // (thmod)
     }
 }
 
@@ -1069,7 +1076,24 @@ TRAIT_GROUP_MASK GetTraitGroups( TraitId id )
         case TraitId::Warlord:          return TGM_WARLORD;
         case TraitId::RawPower:         return TGM_RAWPOWER;
         case TraitId::Thief:            return TGM_NONE;
+        case TraitId::Siegemaster:      return TGM_SIEGEMASTER; // (thmod)
     }
+}
+
+//----- (thmod) SIEGEMASTER ------------------------------------------------------
+bool IsSiegemaster( int playerIndex )
+{
+    return MaxCountOfPlayersInGame == 1 && HasTrait( playerIndex, TraitId::Siegemaster );
+}
+
+// The Siegemaster icons are frames appended to BOTH icon sheets: SpelIcon.CEL (56 px, panel and
+// trait list) and SpellI2.CEL (37 px, spell book) are drawn with the same index. Use the new frame
+// only when both sheets already have it, so the game runs with the stock files too.
+int SiegeSpellIcon( int newIcon, int fallbackIcon )
+{
+    const bool inBig   = Data_SpelIconCEL && *(const uint*)Data_SpelIconCEL >= (uint)newIcon;
+    const bool inSmall = Data_SpellI2CEL  && *(const uint*)Data_SpellI2CEL  >= (uint)newIcon;
+    return inBig && inSmall ? newIcon : fallbackIcon;
 }
 
 //----- (th2) ------------------------------------------------------------
@@ -1079,7 +1103,18 @@ Portrait GetTraitPicId( TraitId id )
     if( id == TraitId::NoTrait ){
         return PcxTraits[50];
     }else{
-        return PcxTraits[81 + (int)id - 1];
+        const int row = 81 + (int)id - 1;
+        // (thmod) SIEGEMASTER: its portrait row is APPENDED to ui_art\traits.pcx (resources folder).
+        // Until the extended sheet is packed that row does not exist -- show the Warlord's portrait
+        // instead of reading past the end of the strip. Rows are 76 px (14594 px / 192 rows, v0.774).
+        if( id == TraitId::Siegemaster ){
+            Portrait portrait = PcxTraits[row]; // loads the sheet, so its size is known below
+            if( PcxTraits.size.cy < (row + 1) * 76 ){
+                return PcxTraits[81 + (int)TraitId::Warlord - 1];
+            }
+            return portrait;
+        }
+        return PcxTraits[row];
     }
 }
 
@@ -1101,6 +1136,7 @@ std::vector<TraitId> CalcAvailableTraitList( PLAYER_FULL_CLASS fullClass, declty
 		switch( traitId ){
             case TraitId::Warlord:
             case TraitId::Fatality:
+		    case TraitId::Siegemaster: // (thmod) SP only, like the Warlord
 		    case TraitId::Thief:       // (th4) SP only, per design -- stealth has no place in co-op
 		    case TraitId::CrowdSeeker: if( IsMultiplayer() ) return true;
 		}
@@ -1134,6 +1170,7 @@ std::vector<TraitId> CalcAvailableTraitList( PLAYER_FULL_CLASS fullClass, declty
             case TraitId::Fechtmeister:
             case TraitId::Tormentor:
             case TraitId::CrossbowTraining:
+            case TraitId::Siegemaster: // (thmod) same as the Warlord
 
 				return true;
 			}

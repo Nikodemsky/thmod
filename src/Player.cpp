@@ -2594,6 +2594,9 @@ void __fastcall CreatePlayer( int playerIndex, char classId, char subclassId, ch
 	else if (HasTrait(playerIndex, TraitId::Warlord)) {
 		player.AvailableSkillMask = BIT(PS_52_LESSER_SUMMON) | BIT(PS_55_UNSUMMON);
 	}
+	else if (IsSiegemaster(playerIndex)) { // (thmod) Bombardier, Trapper, Unsummon
+		player.AvailableSkillMask = BIT(PS_52_LESSER_SUMMON) | BIT(PS_53_COMMON_SUMMON) | BIT(PS_55_UNSUMMON);
+	}
 	/*else if (player.fullClassId == PFC_ARCHER && GameMode == GM_CLASSIC) {
 		player.AvailableSkillMask = BIT(PS_28_TRAP_DISARM);
 	}*/
@@ -3148,6 +3151,9 @@ void __fastcall InitPlayer( uint playerIndex, int loadFromIngameMenu )
 	}
 	else if (HasTrait(playerIndex, TraitId::Warlord)) {
 		player.AvailableSkillMask = BIT(PS_52_LESSER_SUMMON) | BIT(PS_55_UNSUMMON);
+	}
+	else if (IsSiegemaster(playerIndex)) { // (thmod) Bombardier, Trapper, Unsummon
+		player.AvailableSkillMask = BIT(PS_52_LESSER_SUMMON) | BIT(PS_53_COMMON_SUMMON) | BIT(PS_55_UNSUMMON);
 	}
 	/*else if (player.fullClassId == PFC_ARCHER && GameMode == GM_CLASSIC) {
 		player.AvailableSkillMask = BIT(PS_28_TRAP_DISARM);

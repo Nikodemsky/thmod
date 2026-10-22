@@ -5565,6 +5565,9 @@ int CalculateGolemMaxAmount(int playerindex)
 //----- (th2) -------------------------------------------------------------
 int CalculateSummonsMaxAmount( int summonType, int slvl, int playerindex )
 {
+    if( IsSiegemaster( playerindex ) && is( summonType, SUM_LESSER, SUM_COMMON ) ){
+        return 1; // (thmod) SIEGEMASTER: one Bombardier and one Trapper
+    }
     switch( summonType ){
         case SUM_LESSER: return CalculateLesserSummonsMaxAmount( slvl, playerindex); break;
         case SUM_COMMON: return CalculateCommonSummonsMaxAmount( slvl ); break;
@@ -11212,6 +11215,34 @@ void __fastcall ClearMissileCell(int missileIndex)
 
 // =============================== FLASK ==================================
 
+//----- (thmod) SIEGEMASTER ---------------------------------------------------
+// The Bombardier and the Trapper are monsters (CT_1_MONSTER_AND_TRAP) throwing
+// the same flask / trap missiles a player does. These tell the flask and trap code who they belong to.
+
+// The player a missile belongs to: its caster, or the owner of the summon that cast it; -1 for none.
+static int MissileOwnerPlayer( const Missile& missile )
+{
+	if( missile.CasterType == CT_0_PLAYER ) return missile.CasterIndex;
+	if( missile.CasterType == CT_1_MONSTER_AND_TRAP && (uint) missile.CasterIndex < SummonMonsters_Count ){
+		return missile.CasterIndex / SummonMonstersPerPlayer_Count;
+	}
+	return -1;
+}
+
+// A summon's flask, trap or trap arrow whose summon has died or been unsummoned: it goes with her.
+static bool IsOrphanedSummonMissile( const Missile& missile )
+{
+	return missile.CasterType == CT_1_MONSTER_AND_TRAP && (uint) missile.CasterIndex < SummonMonsters_Count
+		&& !IsSummonAlive( missile.CasterIndex );
+}
+
+// A monster has no flask or trap in hand: it throws with its own damage, and the grade -- reach,
+// splash, trap fire rate -- follows the summon owner's character level the way looted gear would.
+static int SummonOwnerLevel( int monsterIndex )
+{
+	return (uint) monsterIndex < SummonMonsters_Count ? Players[ monsterIndex / SummonMonstersPerPlayer_Count ].CharLevel : 1;
+}
+
 //----- (th3) -------------------------------------------------------------
 void __fastcall CastFlaskThrow( int missileIndex, int casterRow, int casterCol, int targetRow, int targetCol, int casterDirection, int casterType, int casterIndex, int damage )
 {
@@ -11303,6 +11334,30 @@ void __fastcall CastFlaskThrow( int missileIndex, int casterRow, int casterCol, 
 		if( distance > MaxFlaskThrowDistance) distance = MaxFlaskThrowDistance;
 		spellSpeed = static_cast<int>( distance * 3.8 );
     }
+	else if( casterType == CT_1_MONSTER_AND_TRAP && (uint) casterIndex < Monsters_Max_Count ) // (thmod) SIEGEMASTER Bombardier
+	{
+		const Monster& thrower = Monsters[ casterIndex ];
+		minDamage = thrower.MinDamage;
+		maxDamage = thrower.MaxDamage;
+		overTime = 0;
+		// FlasksInfo.cpp holds 20 grades of each flask kind, in this order
+		int firstCode = 100;
+		switch( missile.BaseMissileIndex ){
+		case MI_110_FLASK_OF_FIRE:          firstCode =   0; break;
+		case MI_111_FLASK_OF_LIGHTNING:     firstCode =  20; break;
+		case MI_112_FLASK_OF_ACID:          firstCode =  40; break;
+		case MI_113_FLASK_OF_FIREBOMB:      firstCode =  60; break;
+		case MI_114_FLASK_OF_LIGHTNINGBOMB: firstCode =  80; break;
+		case MI_115_FLASK_OF_ACIDBOMB:      firstCode = 100; break;
+		case MI_118_FLASK_OF_ARCANEBOMB:    firstCode = 120; break;
+		}
+		flaskCode = firstCode + std::min( SummonOwnerLevel( casterIndex ) / 6, 9 );
+		const FlaskInfo& flaskInfo = FlasksInfo[ flaskCode ];
+		const double maxThrowDistance = flaskInfo.MaxFlaskThrowDistance;
+		if( distance < 1. ) distance = 1.;
+		if( distance > maxThrowDistance ) distance = maxThrowDistance;
+		spellSpeed = static_cast<int>( distance * 3.8 );
+	}
 	
 	SetMissileMovementDelta(missileIndex, casterRow, casterCol, targetRow, targetCol, spellSpeed);
 
@@ -11318,6 +11373,11 @@ void __fastcall ActFlaskThrow( int missileIndex)//, int playerIndex )
 {
 	//Player& player = Players[playerIndex];
 	Missile& missile = Missiles[missileIndex];
+	if( IsMainDraw && IsOrphanedSummonMissile( missile ) ){ // (thmod) her bomb goes with the Bombardier
+		if( missile.LightIndex >= 0 ) LightOff( missile.LightIndex );
+		missile.IsDeleted = true;
+		return;
+	}
     if( ! IsMainDraw ) goto motion;
 
 	
@@ -11420,17 +11480,23 @@ void __fastcall ActFlaskThrow( int missileIndex)//, int playerIndex )
             }
             
             if( dotEffectIndex != -1 ){
-                int damage = RngFromRange(minDamage, maxDamage) * ( flaskInfo.DamageOverTimePercentage + PerkValue(PERK_BURN_IN_HELL, missile.CasterIndex) ) / 100;
+                int damage = RngFromRange(minDamage, maxDamage) * ( flaskInfo.DamageOverTimePercentage + ( missile.CasterType == CT_0_PLAYER ? PerkValue(PERK_BURN_IN_HELL, missile.CasterIndex) : 0 ) ) / 100; // (thmod) a monster has no perks
                 damage <<= 6; // To compensate per frame damage
+                if( missile.CasterType != CT_0_PLAYER ){
+                    // (thmod) a monster's puddle hits through MvM_Ranged on EVERY frame of its life, with no
+                    // per-frame scaling: spread the total over the frames, so a puddle does its 31-40%
+                    // of the flask damage in all rather than that much per frame.
+                    damage /= std::max( flaskInfo.DamageOverTimeDuration, 1 );
+                }
 				PoolOverTime = overTime;
-                CastMissile( effectRow, effectCol, effectRow, effectCol, 0, dotEffectIndex, CT_0_PLAYER, missile.CasterIndex, damage, -flaskInfo.DamageOverTimeDuration , missile.spellIndex );
+                CastMissile( effectRow, effectCol, effectRow, effectCol, 0, dotEffectIndex, missile.CasterType /* (thmod) was CT_0_PLAYER */, missile.CasterIndex, damage, -flaskInfo.DamageOverTimeDuration , missile.spellIndex );
             }else{
                 // Explosion effect
                 int monsterNumber = MonsterMap[effectRow][effectCol];
                 if( monsterNumber ){
                     int monsterIndex = abs(monsterNumber) - 1;
                     const Monster& monster = Monsters[monsterIndex];
-                    if( IsPlayerAutoTarget( monsterIndex ) && !IsMonsterImmuneToMissile( monsterIndex, damageType, missile.CasterIndex ) ){
+                    if( IsPlayerAutoTarget( monsterIndex ) && !IsMonsterImmuneToMissile( monsterIndex, damageType, MissileOwnerPlayer( missile ) ) ){ // (thmod) owner, not a monster index
                         KnockbackMonster( monsterIndex, OrientationToTarget( monster.Row, monster.Col, missile.CasterRow, missile.CasterCol ), GameMode == GM_HARD ? 1 : 2 );
                     }
                 }
@@ -11476,6 +11542,14 @@ void __fastcall CastTrapThrow( int missileIndex, int casterRow, int casterCol, i
   	int& minDamage = missile.value[2];
   	int& maxDamage = missile.value[3];
     int& trapCode = missile.value[4];
+	// (thmod) SIEGEMASTER: the Trapper throws at the spot she picked around the Guardian, not at her target
+	if( casterType == CT_1_MONSTER_AND_TRAP ){
+		int spotRow, spotCol;
+		if( SiegeTakeTrapSpot( casterIndex, spotRow, spotCol ) ){
+			targetRow = spotRow;
+			targetCol = spotCol;
+		}
+	}
 	
 	if( casterRow == targetRow && casterCol == targetCol ){
 		targetRow += RowDelta[casterDirection];
@@ -11522,6 +11596,18 @@ void __fastcall CastTrapThrow( int missileIndex, int casterRow, int casterCol, i
 		if( distance > MaxTrapThrowDistance) distance = MaxTrapThrowDistance;
 		spellSpeed = static_cast<int>( distance * 5.0 );
     }
+	else if( casterType == CT_1_MONSTER_AND_TRAP && (uint) casterIndex < Monsters_Max_Count ) // (thmod) SIEGEMASTER Trapper
+	{
+		const Monster& thrower = Monsters[ casterIndex ];
+		minDamage = thrower.MinDamage;
+		maxDamage = thrower.MaxDamage;
+		trapCode = std::min( SummonOwnerLevel( casterIndex ) / 5, 10 ); // fast traps 0-10 (TrapsInfo.cpp)
+		const TrapInfo& trapInfo = TrapsInfo[ trapCode ];
+		const double maxThrowDistance = trapInfo.MaxTrapThrowDistance;
+		if( distance < 1. ) distance = 1.;
+		if( distance > maxThrowDistance ) distance = maxThrowDistance;
+		spellSpeed = static_cast<int>( distance * 5.0 );
+	}
 	
 	SetMissileMovementDelta(missileIndex, casterRow, casterCol, targetRow, targetCol, spellSpeed);
 
@@ -11731,11 +11817,11 @@ int __fastcall AttackCellByTrapperTrap( int missileIndex, int row, int col )
 		if( monsterNumber > 0 ){
 			int monsterIndex = monsterNumber - 1;
 			Monster& monster = Monsters[monsterIndex];
-			if( !IsMonsterImmuneToMissile(monsterIndex, ET_0_PHYSICAL, missile.CasterIndex) && IsPlayerAutoTarget( monsterIndex ) ){ // (rt) not a golem
+			if( !IsMonsterImmuneToMissile(monsterIndex, ET_0_PHYSICAL, MissileOwnerPlayer( missile )) && IsPlayerAutoTarget( monsterIndex ) ){ // (thmod) owner // (rt) not a golem
 				int orientation = OrientationToTarget(missile.Row, missile.Col, row, col);
 				int damage = RngFromRange( missile.CasterRow, missile.CasterCol);
 				const TrapInfo& trapInfo = TrapsInfo[missile.SpellLevel];
-				CastMissile(missile.Row, missile.Col, row, col, orientation, trapInfo.MissileIndex, CT_0_PLAYER, missile.CasterIndex, damage, missile.SpellLevel, missile.spellIndex );
+				CastMissile(missile.Row, missile.Col, row, col, orientation, trapInfo.MissileIndex, missile.CasterType /* (thmod) was CT_0_PLAYER: a Trapper minion's turret shoots as her */, missile.CasterIndex, damage, missile.SpellLevel, missile.spellIndex );
 				isFindTarget = -1;
 			}
         }
@@ -11749,6 +11835,9 @@ void __fastcall ActTrapperTrap(int missileIndex)
 	if( !IsMainDraw ) return;
 	Missile& missile = Missiles[missileIndex];
 	const TrapInfo& trapInfo = TrapsInfo[missile.SpellLevel];
+	if( IsOrphanedSummonMissile( missile ) && missile.TimeToLive > 1 ){
+		missile.TimeToLive = 1; // (thmod) her traps go with the Trapper
+	}
 	
     --missile.TimeToLive;
 	
@@ -11804,6 +11893,10 @@ void __fastcall CastTrapperTrapArrow(int missileIndex, int casterRow, int caster
 void __fastcall ActTrapperTrapArrow( int missileIndex )
 {
     Missile& missile = Missiles[ missileIndex ];
+    if( IsMainDraw && IsOrphanedSummonMissile( missile ) ){ // (thmod) a dead Trapper's arrows stop
+        missile.IsDeleted = true;
+        return;
+    }
     if( ! IsMainDraw ) goto motion;
     missile.TimeToLive--;
     missile.Distance++;

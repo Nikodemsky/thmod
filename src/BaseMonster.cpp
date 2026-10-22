@@ -6816,5 +6816,47 @@ BaseMonster BaseMonsters[BM_COUNT] = {
 	0, 0 // ice age  TRN & name
 },
 
+//--------------------------------SIEGEMASTER MINIONS (thmod)-------------
+// Summoned by a Guardian with the Siegemaster trait. Their art is the PLAYER art of the Bombardier
+// (Assassin folder, ALU set + her TRN) and the Trapper (Rogue folder, RLU set + her TRN): the file
+// names are chosen per animation by SiegeMinionAnimFile (Monster.cpp), so the pattern below is not
+// read. Player sheets mix widths -- stand/walk/hit are 96 px, attack/death 128 px -- so the pitch
+// here is 128 and MonsterDrawPitch / MonsterSpritePosAdjust (Draw.cpp) handle the 96 px sheets.
+// HasSecondAttack is 1 only so the 's' slot (the summon's appear animation) gets the stand sheet;
+// its hit frame is 0, so it never plays a special-attack sound.
+// Life / to hit / damage / AC below are placeholders: summons take theirs from MakeGolem.
+{
+	BM_424_SIEGE_BOMBARDIER,	0, 0,	128,	0,	// index id,   activated flag,   anim height for HP bar,   animation size (width),    seeding size
+	"PlrGFX\\Assassin\\ALU\\ALU%c.CL2",	1,	"DC\\Heroes\\rlb\\rog%c%i.WAV",		0,
+	1,	"X\\plrtrn\\Rogue03Bombardier1lite1.TRN",	// TRNs:   flag and path
+	8, 8, 18, 7, 20, 8,		// IWAHDS frames (counted in the CL2 headers)
+	3, 0, 0, 0, 2, 0,		// delays
+	"Bombardier",			// name
+	0,	0,	1,		// DLVL range & MLVL
+	10,	20, // HP range,
+	AI_61_Siege_Bombardier,	MF_10_OPEN_DOORS, 3,	// AI, int flag, int level
+	30,	9,	2,	5,// tohit, hit frame of 1st attack (the flask leaves her hand), dmg range.
+	0,	0,	0,	0,	 // 2nd attack: tohit, hit frame, dmg range
+	10, 2, MR_7_IM_CURSE,	MR_7_IM_CURSE,// armor, mon type, and resistances
+	16384,		7,	0,		// special flag for drop, animation size, XP
+	0, 0 // ice age  TRN & name
+},
+{
+	BM_425_SIEGE_TRAPPER,	0, 0,	128,	0,	// index id,   activated flag,   anim height for HP bar,   animation size (width),    seeding size
+	"PlrGFX\\Rogue\\RLU\\RLU%c.CL2",	1,	"DC\\Heroes\\rlb\\rog%c%i.WAV",		0,
+	1,	"X\\plrtrn\\Archer03blue3.TRN",	// TRNs:   flag and path
+	8, 8, 18, 7, 20, 8,		// IWAHDS frames (counted in the CL2 headers)
+	3, 0, 0, 0, 2, 0,		// delays
+	"Trapper",			// name
+	0,	0,	1,		// DLVL range & MLVL
+	10,	20, // HP range,
+	AI_62_Siege_Trapper,	MF_10_OPEN_DOORS, 3,	// AI, int flag, int level
+	30,	10,	1,	3,// tohit, hit frame of 1st attack (the trap leaves her hand), dmg range.
+	0,	0,	0,	0,	 // 2nd attack: tohit, hit frame, dmg range
+	10, 2, MR_7_IM_CURSE,	MR_7_IM_CURSE,// armor, mon type, and resistances
+	16384,		7,	0,		// special flag for drop, animation size, XP
+	0, 0 // ice age  TRN & name
+},
+
 //--------------------------------END OF DC HEROES---------------------
 };

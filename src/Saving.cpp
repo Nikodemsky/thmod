@@ -776,7 +776,7 @@ void __fastcall LoadPlayer(int playerIndex)
 		p.CountOfReflectCharges				= p25.CountOfReflectCharges;
 		p.allowedDifficulty					= p25.allowedDifficulty;
 		p.Difficulty						= p25.Difficulty;
-		fori(CD_CAP) p.cooldowns[i]			= p25.cooldowns[i];
+		fori(CD_CAP) p.cooldowns[i]			= i < (int)countof(p25.cooldowns) ? p25.cooldowns[i] : 0; // (thmod) v25 has only 7, do not read past them
 		p.scaleResist						= p25.scaleResist;
 		fori(128) p.SpellLevels[i]			= p25.SpellLevels[i];
 		p.PrevRow							= p25.PrevRow;
