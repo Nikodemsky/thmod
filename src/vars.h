@@ -1609,6 +1609,8 @@ extern bool	SaveAlwaysEnabled;
 //extern bool DotAcidMechanic;
 extern bool PanelsOnCenter;
 extern bool	DropUnderMonsters;
+extern bool DevToolsOn; // (thmod) Config.cpp; Perks.cpp DEV TOOLS
+extern bool HydraLogOn; // (thmod) Config.cpp; Missile.cpp HYDRA LOG
 extern BaseAction BaseActions[ 100 ];
 extern bool	IsFullScreen;
 extern bool	IsThException;

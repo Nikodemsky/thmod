@@ -87,6 +87,8 @@ bool ExternalStorm = true;
 bool OriginalMenu = true;
 bool AllSound = true;
 bool DropUnderMonsters = false;
+bool DevToolsOn = false; // (thmod) "set DevTools on": developer buttons in the synergy panel, Perks.cpp DEV TOOLS
+bool HydraLogOn = false; // (thmod) debug: "set HydraLog on" -> TH4_hydra.log, Missile.cpp HYDRA LOG
 bool IsFullScreen = false;
 bool IsThException = false;
 bool IsStartVideo = true;
@@ -239,6 +241,8 @@ ConfigLine ConfigStructure[] = {
 	{ cfgString, 0, "savealways", 0, &cfg<SaveAlwaysEnabled>, OFF },
 #endif
 	{ cfgString, 0, "dropundermonsters", 0, &cfg<DropUnderMonsters>, OFF },
+	{ cfgString, 0, "DevTools", 0, &cfg<DevToolsOn>, OFF }, // (thmod) developer buttons in the synergy panel
+	{ cfgString, 0, "HydraLog", 0, &cfg<HydraLogOn>, OFF }, // (thmod) debug log of the Hydramancer's hydras
 	{ cfgString, MO_LIST, "Fullscreen", 0, &cfg<IsFullScreen>, OFF },
 	{ cfgString, MO_BOOL, "filter", "Texture filter", &cfg<FilteringMode> },
 	// (th4) GroundMist row disabled FOR NOW: mist nights are part of the weather roll shared by all

@@ -636,44 +636,47 @@ Perk SynergyPerks[] = {
 		/* 0*/ { 21, IPCM_INQUISITOR, {PERK_FRESH_RESERVES, 3, PERK_DAMAGE_SOAK, 3, PERK_UNSTOPPABLE, 5}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 1 },
 	} },
 
-	// (thmod) HYDRAMANCER SYNERGIES -- no requirements yet (clvl 1, no perk/spell/stat reqs), to be balanced later.
-	// Values: Glance of Destruction is in 1/1000 (5 = 0.5%), Reaper's Sight in milliseconds.
-	{ SYNERGY_HEAD_OF_THE_DRAGON, {"hydras may cast Incinerate::instead of Firebolt::at enemies within 3 tiles::    %i%% chance::(excludes Flame Sculpting)"}, "Head of the Dragon", {
-		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
-		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
-		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 15 },
+	// (thmod) HYDRAMANCER SYNERGIES. PERK_ACID_MASTERY = Holy Mastery under Inquisitor's favour.
+	// Values: Glance of Destruction and Reaper's Sight are in hundredths of a percent (150 = 1.5%), shown by %h.
+	{ SYNERGY_HEAD_OF_THE_DRAGON, {"hydras may cast Incinerate::instead of Firebolt::%i%% chance:: ::incompatible with::Flame Sculpting"}, "Head of the Dragon", {
+		/* 0*/ { 21, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,130,0/*sdmv*/, 15 },
+		/* 1*/ { 25, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,145,0/*sdmv*/, 30 },
+		/* 2*/ { 30, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,170,0/*sdmv*/, 45 },
 	} },
 
-	{ SYNERGY_GLANCE_OF_DESTRUCTION, {"hydras may cast the nova::version of their spell::    chance: %i in 1000::5 sec cooldown per hydra"}, "Glance of Destruction", {
-		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
-		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
-		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 20 },
+	{ SYNERGY_GLANCE_OF_DESTRUCTION, {"hydras may cast the nova::version of their spell::%h%% chance"}, "Glance of Destruction", {
+		/* 0*/ { 30, IPCM_WARLOCK, {PERK_WILLPOWER, 5, PERK_FIRE_MASTERY, 2, PERK_LIGHTNING_MASTERY, 2, PERK_ACID_MASTERY, 2}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 50 },
+		/* 1*/ { 42, IPCM_WARLOCK, {PERK_WILLPOWER, 8, PERK_FIRE_MASTERY, 4, PERK_LIGHTNING_MASTERY, 4, PERK_ACID_MASTERY, 4}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 85 },
+		/* 2*/ { 55, IPCM_WARLOCK, {PERK_WILLPOWER, 12, PERK_FIRE_MASTERY, 5, PERK_LIGHTNING_MASTERY, 5, PERK_ACID_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 135 },
 	} },
 
-	{ SYNERGY_REAPERS_SIGHT, {"hydras react faster::(base: every 800 ms)::    interval -%i ms"}, "Reaper's Sight", {
-		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 100 },
-		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 200 },
-		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 300 },
+	// value in hundredths of a percent (shown by %h as 12.5 / 18.75 / 25): the hydra's attack interval (0.8 s = 16 frames)
+	// gets that much shorter -- 2 / 3 / 4 frames = 0.7 / 0.65 / 0.6 s. Keep values that give whole frames (multiples of 625).
+	{ SYNERGY_REAPERS_SIGHT, {"hydras reacts faster::interval shortened::by %h%%"}, "Reaper's Sight", {
+		/* 0*/ { 15, IPCM_WARLOCK, {PERK_MASTER_CASTER, 2}/*perk*/, {}/*spell*/, 0,50,0,0/*sdmv*/,  1250 },
+		/* 1*/ { 30, IPCM_WARLOCK, {PERK_MASTER_CASTER, 4}/*perk*/, {}/*spell*/, 0,115,0,0/*sdmv*/, 1875 },
+		/* 2*/ { 45, IPCM_WARLOCK, {PERK_MASTER_CASTER, 8}/*perk*/, {}/*spell*/, 0,145,0,0/*sdmv*/, 2500 },
 	} },
 
-	{ SYNERGY_FLAME_SCULPTING, {"hydras may cast Fireblast::instead of Firebolt::    %i%% chance::3 sec cooldown per hydra::(excludes Head of the Dragon)"}, "Flame Sculpting", {
-		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  2 },
-		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
-		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
+	{ SYNERGY_FLAME_SCULPTING, {"hydras may cast Fireblast::instead of Firebolt::%i%% chance:: ::incompatible with::Head of the Dragon"}, "Flame Sculpting", {
+		/* 0*/ { 21, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,130,0/*sdmv*/, 10 },
+		/* 1*/ { 25, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,145,0/*sdmv*/, 15 },
+		/* 2*/ { 30, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,170,0/*sdmv*/, 25 },
 	} },
 
-	{ SYNERGY_CONJURATION_OVERLOAD, {"hydras may cast Lightning::with 3 chain jumps::instead of Charged Bolt::    %i%% chance"}, "Conjuration Overload", {
-		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  1 },
-		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  3 },
-		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  6 },
+	// two values: [0] chance %, [1] chain jumps of the chain lightning (Missile.cpp ActChainLightning)
+	{ SYNERGY_CONJURATION_OVERLOAD, {"hydras may cast Lightning::instead of Charged Bolt::%i%% chance", "chain jumps: %i"}, "Conjuration Overload", {
+		/* 0*/ { 21, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 5, PERK_MASTER_CASTER, 3}/*perk*/, {}/*spell*/, 0,0,130,0/*sdmv*/, 4, 3 },
+		/* 1*/ { 25, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 5, PERK_MASTER_CASTER, 6}/*perk*/, {}/*spell*/, 0,0,145,0/*sdmv*/, 7, 4 },
+		/* 2*/ { 30, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 5, PERK_MASTER_CASTER, 9}/*perk*/, {}/*spell*/, 0,0,170,0/*sdmv*/, 9, 5 },
 	} },
 
 	{ SYNERGY_WYVERN_WHISPERER, {"    hydra damage +%i%%"}, "Wyvern Whisperer", {
-		/* 0*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/,  5 },
-		/* 1*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
-		/* 2*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 20 },
-		/* 3*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 25 },
-		/* 4*/ {  1, IPCM_WARLOCK, {}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 30 },
+		/* 0*/ { 13, IPCM_WARLOCK, {PERK_CONJURATION, 5}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 5 },
+		/* 1*/ { 19, IPCM_WARLOCK, {PERK_CONJURATION, 7}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 10 },
+		/* 2*/ { 25, IPCM_WARLOCK, {PERK_CONJURATION, 9}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 20 },
+		/* 3*/ { 31, IPCM_WARLOCK, {PERK_CONJURATION, 11}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 25 },
+		/* 4*/ { 43, IPCM_WARLOCK, {PERK_CONJURATION, 13}/*perk*/, {}/*spell*/, 0,0,0,0/*sdmv*/, 30 },
 	} },
 
 };
