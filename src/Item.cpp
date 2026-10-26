@@ -6114,7 +6114,7 @@ int __fastcall CheckItemReq(uint playerIndex, Item* item)
 	}
 
 	if (player.fullClassId == PFC_WARLOCK) {
-		if (item->MagicCode == MC_24_BOOKS && is(item->SpellIndex, PS_31_HOLY_BOLT, PS_39_HOLY_NOVA)) {
+		if (item->MagicCode == MC_24_BOOKS && WarlockSpellBan(playerIndex, item->SpellIndex)) { // (thmod) holy ban lifted by Inquisitor's favour (acid is refused above)
 			return false;
 		}
 	}

@@ -97,9 +97,65 @@ void SpendPerkPoint(int perk)
 	NetSendCmdParam2( 1, CMD_105_SETPERK, perk, Players[CurrentPlayerIndex].perk[perk] );
 }
 
+//----- (thmod) DEV TOOLS -------------------------------------------------------------------------
+// config.ini "set DevTools on": two text buttons at the bottom left of the synergy panel.
+//   [Reset synergies]   takes back every synergy point spent
+//   [+1 point]          adds a free synergy point -- for this session only, it is not saved
+//                       (after a reload the spent points stay and "Points to spend" may go below 0)
+int DevBonusSynergyPoints = 0;
+static const char* const DevResetText = "[Reset synergies]";
+static const char* const DevAddText   = "[+1 point]";
+
+static bool DevSynergyButtonsShown()
+{
+	return DevToolsOn && IsPerksPanelVisible && CurPerkPanel == PERK_TYPE_SYNERGY;
+}
+
+// button 0 = reset, 1 = add: left x and text baseline y, in DrawText coordinates (= cursor coordinates)
+static void DevSynergyButtonPos( int button, int& x, int& y )
+{
+	x = PerksPanelPos.Left + 29 + (button ? GetTextWidth(DevResetText) + 16 : 0);
+	y = PerksPanelPos.Down - 640 + 605; // the "Points to spend" row
+}
+
+static bool IsMouseOnDevSynergyButton( int button )
+{
+	int x, y;
+	DevSynergyButtonPos(button, x, y);
+	const int w = GetTextWidth(button ? DevAddText : DevResetText);
+	return CursorX >= x && CursorX <= x + w && CursorY >= y - 12 && CursorY <= y + 3;
+}
+
+static void DevResetSynergies()
+{
+	Player& player = Players[CurrentPlayerIndex];
+	for( int p = PERKS_ONLY_MAX_400; p < PERKS_SYNERGY; ++p ){
+		if( player.perk[p] ){
+			player.perk[p] = 0;
+			NetSendCmdParam2( 1, CMD_105_SETPERK, p, 0 );
+		}
+	}
+	getAvailablePerksList();
+	PlayGlobalSound(S_75_I_TITLEMOV);
+}
+
+static void DrawDevSynergyButtons()
+{
+	if( ! DevSynergyButtonsShown() ) return;
+	for( int button = 0; button < 2; ++button ){
+		int x, y;
+		DevSynergyButtonPos(button, x, y);
+		DrawText(x, y, 0, button ? DevAddText : DevResetText, IsMouseOnDevSynergyButton(button) ? C_3_Gold : C_4_Orange);
+	}
+}
+
 //----- (th2) ------------------------------------------------------------
 void HandlePerksWindowClick()
 {
+	if( DevSynergyButtonsShown() ){ // (thmod) DEV TOOLS
+		if( IsMouseOnDevSynergyButton(0) ){ DevResetSynergies(); return; }
+		if( IsMouseOnDevSynergyButton(1) ){ ++DevBonusSynergyPoints; PlayGlobalSound(S_1112_PERK_01); return; }
+	}
 	if( IsMouseOnPerkArrowUp() && perkUpArrowPressed == false ){
         perkUpArrowPressed = true;
         PerkPanel_Shift(-1);
@@ -216,6 +272,7 @@ bool PerkAvailable( int playerIndex, int perkIndex, int perkLevel )
 											&& (!(player.gameChanger & BIT(GC_27_TERMINATOR))); break;
 		case PERK_ACROBATICS:				available = !HasTrait(playerIndex, TraitId::BigFrame); break;
 		case PERK_ACID_BURN:				available = !InquisitorsFavour(playerIndex); break; // (thmod) INQUISITOR'S FAVOUR: no acid
+		case PERK_ACID_MASTERY:			available = !( InquisitorsFavour(playerIndex) && perkLevel >= 7 ); break; // (thmod) INQUISITOR'S FAVOUR: as Holy Mastery at most 7 levels (LimitPlayerPerks refunds the rest)
 		case PERK_NIGHT_KIN:				available = player.gameChanger & BIT(GC_9_NIGHT_KIN) && HasTrait(playerIndex, TraitId::Barbarian); break; // mor: iow, this never happens (it's on purpose!)
 		case PERK_LEECH_LIFE:
 		case PERK_LEECH_MANA:
@@ -859,7 +916,7 @@ int getPlayerPerksPointsLeft(PERK_TYPE perkType /*= PERK_TYPE_COMMON*/)
 		else if(HasTrait(CurrentPlayerIndex, TraitId::Insensitive)) {
 			le_divider = 7;
 		}
-		synergyPointsGiven = clvl / le_divider;
+		synergyPointsGiven = clvl / le_divider + DevBonusSynergyPoints; // (thmod) DEV TOOLS: [+1 point]
 		return synergyPointsGiven - getPlayerSumOfPerks(perkType);
 	}
 	break;
@@ -1128,9 +1185,23 @@ void DrawPerksPanel()
 				prevValue = perk.level[level-1].value[v];
 			}
 			string desc = LocalizedPerkDesc(perk.description[v]);
-			desc = ReplaceString( desc, "%i", "(\201%i\201) \204%i\204" );
-
-			sprintf(buff, (char*)desc.c_str(), prevValue, value);
+			if( desc.find("%h") != string::npos ){
+				// (thmod) %h = a value kept in hundredths, shown with up to 2 decimals (1875 -> 18.75, 2500 -> 25)
+				auto hundredths = []( char (&out)[16], int n ){
+					sprintf(out, "%i.%02i", n / 100, n % 100);
+					char* end = out + strlen(out) - 1;
+					while( *end == '0' ) *end-- = 0;
+					if( *end == '.' ) *end = 0;
+				};
+				char prevText[16], valueText[16];
+				hundredths(prevText, prevValue);
+				hundredths(valueText, value);
+				desc = ReplaceString( desc, "%h", "(\201%s\201) \204%s\204" );
+				sprintf(buff, (char*)desc.c_str(), prevText, valueText);
+			}else{
+				desc = ReplaceString( desc, "%i", "(\201%i\201) \204%i\204" );
+				sprintf(buff, (char*)desc.c_str(), prevValue, value);
+			}
 
 			stringstream desc2;
 			desc2 << buff;
@@ -1236,6 +1307,7 @@ void DrawPerksPanel()
 	sprintf(buff, "%i", pointsLeft);
 	DrawText(textX + 505, textY + 445, textX + 560, buff, (pointsLeft > 0 ? C_0_White : C_2_Red));
 	DrawText(textX + 365, textY + 445, textX + 490, L("Points to spend:"), C_0_White);
+	DrawDevSynergyButtons(); // (thmod) DEV TOOLS
 }
 
 //----- (th2) ------------------------------------------------------------

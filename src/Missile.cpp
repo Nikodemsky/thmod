@@ -2286,7 +2286,8 @@ CLASSIC_DAMAGE_MODIFY_SKIP_R:
 			}
 			monster.CurAction = A_15_STONE;
 		}else{
-			if( !isBlessedHammer && DoesMissileKnockback(playerIndex, baseMissileIndex) ){
+			if( !isBlessedHammer && DoesMissileKnockback(playerIndex, baseMissileIndex)
+			 && !(baseMissileIndex == MI_53_HOLY_BOLT && IsHydramancerHydraCast(missile.CasterType, missile.CasterIndex, missile.spellIndex)) ){ // (thmod) a hydra's Holy Bolt (also Holy Nova from Glance of Destruction) does not knock back; the player's still does
 				if (baseMissileIndex != MI_14_HELLFIRE_SEGMENT) {
 					KnockbackMonster(monsterIndex, OrientationToTarget(monster.Row, monster.Col, missile.CasterRow, missile.CasterCol), GameMode == GM_HARD ? 1 : 2);
 				}else{
@@ -6474,7 +6475,7 @@ void __fastcall CastIncinerateSegment( int missileIndex, int casterRow, int cast
 		Player& player = Players[casterIndex];
 		//missile.Damage = ( 8 * ( RNG(50 + player.CharLevel) ) + 16 ) * 16 ;// old formula
 		if( IsHydramancerHydraCast(casterType, casterIndex, missile.spellIndex) ){ // (thmod) HEAD OF THE DRAGON
-			missile.Damage = HydraMultiFrameDamage(missile2.Damage, 20); // the parent Incinerate carries the hydra damage
+			missile.Damage = HydraMultiFrameDamage(missile2.Damage, 16); // the parent Incinerate carries the hydra damage; one hydra bolt per 0.8 s in the fire (16 frames)
 		}else{
 			missile.Damage = RNG(player.CharLevel * player.CharLevel) + ((player.CharLevel * player.CurMagic) / 3);
 		}
@@ -7030,6 +7031,49 @@ static bool IsPlayerAutoTarget( int monsterIndex )
 	return !( Monsters[monsterIndex].flag & MF_6_FRIENDLY );
 }
 
+//----- (thmod) HYDRA LOG -------------------------------------------------------------------------
+// config.ini "set HydraLog on": every decision of a Hydramancer's hydras is appended to TH4_hydra.log in the
+// game folder (delete the file to start fresh); special casts of the local player's hydras are also shown as
+// on-screen messages. Debug aid, off by default -- when off it costs a single bool test per line.
+// Line: game time [s] (GetTickCountTh counts MAX_FPS ticks per second), player index, hydra (missile index), text. Variadic MACRO, not a varargs function:
+// stdarg.h is commented out in stdafx.h. Always pass at least one argument after the format.
+#define HYDRA_LOG(h, fmt, ...) do{ if( HydraLogOn ){ if( FILE* f_ = fopen("TH4_hydra.log", "a") ){ \
+	fprintf(f_, "%9.2f p%i h%-3i " fmt "\n", GetTickCountTh() / (double)MAX_FPS, Missiles[h].CasterIndex, h, __VA_ARGS__); fclose(f_); } } }while(0)
+
+static const char* HydraElemName( int elem )
+{
+	switch( elem ){
+	case ET_1_FIRE:      return "fire";
+	case ET_2_LIGHTNING: return "lightning";
+	case ET_3_ARCAN:     return "arcane";
+	case ET_4_ACID:      return "acid";
+	case ET_5_HOLY:      return "holy";
+	case ET_6_COLD:      return "cold";
+	}
+	return "?";
+}
+
+static const char* HydraMissileName( int baseMissile )
+{
+	switch( baseMissile ){
+	case MI_1_FIREBOLT:                   return "Firebolt";
+	case MI_144_HYDRAMANCER_CHARGED_BOLT: return "Charged Bolt";
+	case MI_24_ARCANE_STAR:               return "Arcane Star";
+	case MI_137_RANCID_BOLT:              return "Rancid Bolt";
+	case MI_53_HOLY_BOLT:                 return "Holy Bolt";
+	case MI_129_SNOW_BOLT:                return "Ice Bolt";
+	case MI_72_FIRE_NOVA:                 return "Fire Nova";
+	case MI_42_LIGHTNING_NOVA:            return "Lightning Nova";
+	case MI_15_ARCANE_NOVA:               return "Arcane Nova";
+	case MI_136_ACID_NOVA:                return "Acid Nova";
+	case MI_32_HOLY_NOVA:                 return "Holy Nova";
+	case MI_49_INCINERATE:                return "Incinerate";
+	case MI_6_FIREBLAST:                  return "Fireblast";
+	case MI_7_LIGHTNING:                  return "Lightning + chains";
+	}
+	return "?";
+}
+
 // (thmod) HYDRAMANCER SYNERGIES: special casts that replace a hydra's regular bolt. They deal the hydra damage
 // computed by the caller (hydra formula, incl. Wyvern Whisperer), cost no mana and carry spellIndex PS_13_HYDRA,
 // which is how CastNova / CastFireblast / CastIncinerate / ActLightning / ActChainLightning recognize them.
@@ -7041,53 +7085,94 @@ static bool HydramancerSpecialCast( int hydraIndex, int row, int col, int dir, i
 	const int caster = hydra.CasterIndex;
 	int& glanceCooldown = hydra.value[3];
 	int& sculptCooldown = hydra.value[4];
-	// GLANCE OF DESTRUCTION: the nova version of the rolled spell (chance in 1/1000), 5 s cooldown per hydra
-	if( glanceCooldown <= 0 ){
-		const int chance = PerkValue(SYNERGY_GLANCE_OF_DESTRUCTION, caster);
-		if( chance > 0 && RNG(1000) < chance ){
-			int nova = -1;
-			switch( elem ){
-			case ET_1_FIRE:      nova = MI_72_FIRE_NOVA;      break;
-			case ET_2_LIGHTNING: nova = MI_42_LIGHTNING_NOVA; break;
-			case ET_3_ARCAN:     nova = MI_15_ARCANE_NOVA;    break;
-			case ET_4_ACID:      nova = MI_136_ACID_NOVA;     break;
-			case ET_5_HOLY:      nova = MI_32_HOLY_NOVA;      break; // Inquisitor's favour
-			}
-			if( nova != -1 ){
-				CastMissile(hydra.Row, hydra.Col, row, col, dir, nova, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
-				glanceCooldown = 5 * ENGINE_FPS;
-				return true;
+	const int distRow = abs(row - hydra.Row), distCol = abs(col - hydra.Col);
+	const int dist = distRow > distCol ? distRow : distCol; // in tiles, measured from the HYDRA
+	int cast = -1;
+	// GLANCE OF DESTRUCTION: the nova version of the rolled spell (chance in hundredths of a percent: 150 = 1.5%), 5 s cooldown per hydra
+	if( const int chance = PerkValue(SYNERGY_GLANCE_OF_DESTRUCTION, caster); chance > 0 ){
+		if( glanceCooldown > 0 ){
+			HYDRA_LOG(hydraIndex, "   Glance of Destruction: cooldown, %.1f s left", glanceCooldown / (double)ENGINE_FPS);
+		}else{
+			const int roll = RNG(10000);
+			HYDRA_LOG(hydraIndex, "   Glance of Destruction: roll %i, needs < %i (of 10000) -> %s", roll, chance, roll < chance ? "YES" : "no");
+			if( roll < chance ){
+				switch( elem ){
+				case ET_1_FIRE:      cast = MI_72_FIRE_NOVA;      break;
+				case ET_2_LIGHTNING: cast = MI_42_LIGHTNING_NOVA; break;
+				case ET_3_ARCAN:     cast = MI_15_ARCANE_NOVA;    break;
+				case ET_4_ACID:      cast = MI_136_ACID_NOVA;     break;
+				case ET_5_HOLY:      cast = MI_32_HOLY_NOVA;      break; // Inquisitor's favour
+				}
+				if( cast != -1 ) glanceCooldown = 5 * ENGINE_FPS;
 			}
 		}
 	}
-	if( elem == ET_1_FIRE ){
-		// HEAD OF THE DRAGON: Incinerate instead of Firebolt at enemies within 3 tiles
-		if( abs(row - hydra.Row) <= 3 && abs(col - hydra.Col) <= 3 ){
-			const int chance = PerkValue(SYNERGY_HEAD_OF_THE_DRAGON, caster);
-			if( chance > 0 && RNG(100) < chance ){
-				CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_49_INCINERATE, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
-				return true;
+	if( cast == -1 && elem == ET_1_FIRE ){
+		// HEAD OF THE DRAGON: Incinerate instead of Firebolt at the NEAREST enemy within 3 tiles of the hydra --
+		// not necessarily the target the hydra picked (its search goes ray by ray, so that one is often far away)
+		if( const int chance = PerkValue(SYNERGY_HEAD_OF_THE_DRAGON, caster); chance > 0 ){
+			int nearRow = -1, nearCol = -1, nearDist = 0;
+			for( int ring = 1; ring <= 3 && nearRow < 0; ++ring ){ // square rings around the hydra, closest first
+				for( int dr = -ring; dr <= ring && nearRow < 0; ++dr ){
+					for( int dc = -ring; dc <= ring; ++dc ){
+						if( abs(dr) != ring && abs(dc) != ring ) continue; // inner cells belong to a closer ring
+						int r = hydra.Row + dr, c = hydra.Col + dc;
+						if( ! To112(r, c) ) continue;
+						int monsterNumber = MonsterMap[ r ][ c ];
+						MonsterHorizontalHitFix(monsterNumber, r, c);
+						if( monsterNumber <= 0 ) continue;
+						const int monsterIndex = monsterNumber - 1;
+						if( IsMonsterImmuneToMissile(monsterIndex, ET_1_FIRE, caster) || ! IsPlayerAutoTarget(monsterIndex)
+						 || ! CheckCastInSight(hydra.Row, hydra.Col, r, c) ) continue;
+						nearRow = r; nearCol = c; nearDist = ring;
+						break;
+					}
+				}
+			}
+			if( nearRow < 0 ){
+				HYDRA_LOG(hydraIndex, "   Head of the Dragon: no enemy within 3 tiles of the hydra (its target is %i tiles away) -> no roll", dist);
+			}else{
+				const int roll = RNG(100);
+				HYDRA_LOG(hydraIndex, "   Head of the Dragon: nearest enemy %i,%i at %i tiles (its target %i tiles), roll %i, needs < %i%% -> %s",
+					nearRow, nearCol, nearDist, dist, roll, chance, roll < chance ? "YES" : "no");
+				if( roll < chance ){
+					cast = MI_49_INCINERATE;
+					row = nearRow; col = nearCol; // the Incinerate goes at the near enemy
+					dir = OrientationToTarget(hydra.Row, hydra.Col, row, col);
+				}
 			}
 		}
 		// FLAME SCULPTING: Fireblast instead of Firebolt, 3 s cooldown per hydra
-		if( sculptCooldown <= 0 ){
-			const int chance = PerkValue(SYNERGY_FLAME_SCULPTING, caster);
-			if( chance > 0 && RNG(100) < chance ){
-				CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_6_FIREBLAST, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
-				sculptCooldown = 3 * ENGINE_FPS;
-				return true;
+		if( const int chance = PerkValue(SYNERGY_FLAME_SCULPTING, caster); cast == -1 && chance > 0 ){
+			if( sculptCooldown > 0 ){
+				HYDRA_LOG(hydraIndex, "   Flame Sculpting: cooldown, %.1f s left", sculptCooldown / (double)ENGINE_FPS);
+			}else{
+				const int roll = RNG(100);
+				HYDRA_LOG(hydraIndex, "   Flame Sculpting: roll %i, needs < %i%% -> %s", roll, chance, roll < chance ? "YES" : "no");
+				if( roll < chance ){
+					cast = MI_6_FIREBLAST;
+					sculptCooldown = 3 * ENGINE_FPS;
+				}
 			}
 		}
-	}else if( elem == ET_2_LIGHTNING ){
-		// CONJURATION OVERLOAD: Lightning + chain lightning (3 jumps) instead of Charged Bolt
-		const int chance = PerkValue(SYNERGY_CONJURATION_OVERLOAD, caster);
-		if( chance > 0 && RNG(100) < chance ){
-			CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_7_LIGHTNING, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
-			CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_133_CHAIN_LIGTNING, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
-			return true;
+	}else if( cast == -1 && elem == ET_2_LIGHTNING ){
+		// CONJURATION OVERLOAD: Lightning + chain lightning (3 / 4 / 5 jumps) instead of Charged Bolt
+		if( const int chance = PerkValue(SYNERGY_CONJURATION_OVERLOAD, caster); chance > 0 ){
+			const int roll = RNG(100);
+			HYDRA_LOG(hydraIndex, "   Conjuration Overload: roll %i, needs < %i%% -> %s", roll, chance, roll < chance ? "YES" : "no");
+			if( roll < chance ) cast = MI_7_LIGHTNING;
 		}
 	}
-	return false;
+	if( cast == -1 ) return false;
+	CastMissile(hydra.Row, hydra.Col, row, col, dir, cast, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+	if( cast == MI_7_LIGHTNING ){
+		CastMissile(hydra.Row, hydra.Col, row, col, dir, MI_133_CHAIN_LIGTNING, CT_0_PLAYER, caster, damage, boltLevel, PS_13_HYDRA);
+	}
+	HYDRA_LOG(hydraIndex, "   -> SPECIAL: %s, damage %i", HydraMissileName(cast), damage);
+	if( HydraLogOn && caster == CurrentPlayerIndex ){
+		AddNewPlayerStatusFormattedMessage("Hydra: %s", HydraMissileName(cast));
+	}
+	return true;
 }
 
 bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
@@ -7107,6 +7192,7 @@ bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 				bolt  = MI_129_SNOW_BOLT;
 				spell = PS_56_ICE_BOLT;
 			}else if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) ){
+				const char* swapNote = ""; // (thmod) HYDRA LOG
 				auto& hydra = Hydras[RNG(countof(Hydras))];
 				elem  = hydra.elem;
 				bolt  = hydra.missile;
@@ -7116,6 +7202,7 @@ bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 						elem  = ET_5_HOLY;
 						bolt  = MI_53_HOLY_BOLT;
 						spell = PS_31_HOLY_BOLT;
+						swapNote = " (acid -> holy, undead target)";
 					}else{
 						// Holy Bolt is for the undead only: against anything else re-roll among the other elements
 						// (fire / lightning / arcane, the first three entries of Hydras[]) instead of wasting the shot
@@ -7123,12 +7210,22 @@ bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 						elem  = other.elem;
 						bolt  = other.missile;
 						spell = other.spell;
+						swapNote = " (acid -> re-rolled, target not undead)";
 					}
 				}
 				//Firing mana cost is turned off in CastFireBolt(), CastArcaneStar(), CastAcidMissile().  For Charged Bolt, it's automatically turned off.
-				if( PlayerSpellLevel(missile.CasterIndex, spell, SO_1_SPELL) <= 0 ) return false;
+				if( PlayerSpellLevel(missile.CasterIndex, spell, SO_1_SPELL) <= 0 ){
+					HYDRA_LOG(missileIndex, " skip: %s%s rolled, but %s is not known (target %i,%i)", HydraElemName(elem), swapNote, HydraMissileName(bolt), row, col);
+					return false;
+				}
+				HYDRA_LOG(missileIndex, " target %i,%i (%i tiles), element %s%s", row, col, abs(row - missile.Row) > abs(col - missile.Col) ? abs(row - missile.Row) : abs(col - missile.Col), HydraElemName(elem), swapNote);
 			}
-			if( ! IsMonsterImmuneToMissile(monsterIndex, elem, missile.CasterIndex) && IsPlayerAutoTarget( monsterIndex ) ){
+			const bool immune = IsMonsterImmuneToMissile(monsterIndex, elem, missile.CasterIndex);
+			const bool autoTarget = !immune && IsPlayerAutoTarget( monsterIndex );
+			if( !autoTarget && HasTrait(missile.CasterIndex, TraitId::Hydramancer) ){
+				HYDRA_LOG(missileIndex, " skip: %s", immune ? "target immune / dying / talking" : "friendly or own summon");
+			}
+			if( autoTarget ){
 				int damage = GetDamageOfPlayerSpell(missile.CasterIndex, missile.spellIndex, missile.SpellLevel, elem); // use hydra level for damage calc
 				int dir = OrientationToTarget(missile.Row, missile.Col, row, col);
 				missile.value[2] = MissileIndexList[0]; // CurHydraFireboltIndex
@@ -7139,6 +7236,9 @@ bool __fastcall AttackCellByHydra( int missileIndex, int row, int col )
 					return true;
 				}
 				CastMissile(missile.Row, missile.Col, row, col, dir, bolt, CT_0_PLAYER, missile.CasterIndex, damage, boltLevel, missile.spellIndex );
+				if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) ){
+					HYDRA_LOG(missileIndex, "   -> %s, damage %i", HydraMissileName(bolt), damage);
+				}
 				if (elem == ET_3_ARCAN) {
 					PlayLocalSound(/*Spells[spell].SoundType*/ S_1843, missile.Row, missile.Col);
 				}
@@ -9354,16 +9454,20 @@ void __fastcall ActHydra(int missileIndex)
 		SetMissileDirection(missileIndex, 1);
 	}
 
-	// (thmod) REAPER'S SIGHT: a Hydramancer's hydras look for a target more often (base 16 frames = 0.8 s)
+	// (thmod) REAPER'S SIGHT: a Hydramancer's hydras look for a target more often (base 16 frames = 0.8 s);
+	// the synergy value is the % the interval gets shorter, in hundredths (1250 = 12.5% = 2 frames)
 	int hydraInterval = 16;
 	if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) ){
-		hydraInterval -= PerkValue(SYNERGY_REAPERS_SIGHT, missile.CasterIndex) * ENGINE_FPS / 1000;
+		hydraInterval -= 16 * PerkValue(SYNERGY_REAPERS_SIGHT, missile.CasterIndex) / 10000;
 		LimitToMin(hydraInterval, 1);
 		// per-hydra cooldowns of Glance of Destruction / Flame Sculpting (see HydramancerSpecialCast)
 		if( missile.value[3] > 0 ) missile.value[3]--;
 		if( missile.value[4] > 0 ) missile.value[4]--;
 	}
 	if( !(missile.TimeToLive % hydraInterval) ){
+		if( HasTrait(missile.CasterIndex, TraitId::Hydramancer) ){
+			HYDRA_LOG(missileIndex, "scan for a target (every %.2f s, %.1f s of life left)", hydraInterval / (double)ENGINE_FPS, missile.TimeToLive / (double)ENGINE_FPS);
+		}
 		int prevRowDelta = 0;
 		int prevColDelta = 0;
 
@@ -9419,11 +9523,11 @@ void __fastcall ActChainLightning(int missileIndex)
 	//int dir = OrientationToTarget(missile.Row, missile.Col, targetRow, targetCol);
 	//CastMissile(missile.Row, missile.Col, targetRow, targetCol, dir, MI_7_LIGHTNING, CT_0_PLAYER, missile.CasterIndex, 1, missile.SpellLevel, missile.spellIndex);
 
-	// (thmod) CONJURATION OVERLOAD: a hydra's chain always makes 3 jumps, to monsters other than the
-	// hydra's own target, and its bolts carry the hydra damage
+	// (thmod) CONJURATION OVERLOAD: a hydra's chain makes the synergy's number of jumps (value 1: 3 / 4 / 5), to monsters
+	// other than the hydra's own target, and its bolts carry the hydra damage
 	const bool hydraCast = IsHydramancerHydraCast(missile.CasterType, missile.CasterIndex, missile.spellIndex);
 	const int hydraTarget = hydraCast && To112(missile.value[0], missile.value[1]) ? MonsterMap[missile.value[0]][missile.value[1]] : 0;
-	int extraChains = hydraCast ? 3 : PerkValue(PERK_CHAIN_LIGHTNING, missile.CasterIndex);
+	int extraChains = hydraCast ? PerkValue(SYNERGY_CONJURATION_OVERLOAD, missile.CasterIndex, 1) : PerkValue(PERK_CHAIN_LIGHTNING, missile.CasterIndex);
 	if (GameMode == GM_CLASSIC && !hydraCast) {
 		extraChains = missile.SpellLevel - 1;
 	}
