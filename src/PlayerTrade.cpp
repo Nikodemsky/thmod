@@ -1793,6 +1793,9 @@ void GillianMainMenu()
     if( StashEnabled() ){
         SetDialogRow(PT_DialogRows_NoIndent, PT_DialogRows_GilianMain_14_Stash, true, "Open stash", C_0_White, true);
     }
+    if( SharedStashActive() ){ // (thmod) shared stash
+        SetDialogRow(PT_DialogRows_NoIndent, PT_DialogRows_GilianMain_16_SharedStash, true, "Open safe deposit box", C_0_White, true);
+    }
     SetDialogRow(PT_DialogRows_NoIndent, PT_DialogRows_GilianMain_18_Leave, true, "Say goodbye", C_0_White, true);
     SetDialogLine(PT_DialogRows_5_SmallDialog_Separator);
     DialogRowsCount = PT_DialogRows_20_SmallDialog_RowsCount;
@@ -3213,6 +3216,8 @@ void HandleGilianMainMenu ()
         ChangeTownerDialog(PD_19_Talk);
     }else if( SelectedDialogRow == PT_DialogRows_GilianMain_14_Stash && StashEnabled() ){
         StashPanel_Open();
+    }else if( SelectedDialogRow == PT_DialogRows_GilianMain_16_SharedStash && SharedStashActive() ){ // (thmod)
+        StashPanel_OpenShared();
     }else if( SelectedDialogRow == PT_DialogRows_GilianMain_18_Leave ){
         CurrentDialogIndex = PD_0_None;
     }

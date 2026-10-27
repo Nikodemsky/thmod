@@ -11,13 +11,11 @@ static constexpr int Stash_TabCostRatio = 10'000; // 10k gold times number of ta
 
 static char Stash_ItemsSortSwitchState = 0;
 
-int & StashCurrentTab = AdditionalStateData.StashCurrentTab; // save
-int & StashTabsPurchased = AdditionalStateData.StashTabsPurchased; // save
 int StashTabPrice = 0;
 int StashLastAvailablePageIndex = 0;
 int StashCurrentPageIndex = 0;
 bool AvailableStashTabs[Stash_TotalTabs];
-StashTab StashTabs[Stash_TotalTabs];
+StashTab StashTabs[Stash_TotalTabs]; // personal stash (saved in the hero archive)
 
 DisplayObject StashChangePageButtons[Stash_ChangePageButtonsAmount];
 char StashChangePageButtonsStates[Stash_ChangePageButtonsAmount];
@@ -43,21 +41,406 @@ enum {
 	BTN_DISABLED = 3
 };
 
+// ---------------------------------------------------------------------------------------------
+// (thmod) Shared stash -- Gillian's "Open safe deposit box"
+// One stash shared by all single player heroes of the Easy and Normal game modes (their items are
+// generated the same way), kept in its own file next to the hero saves (SharedStash config option).
+// Items are not saved as finished objects but as a recipe (LastItemInfo) that is regenerated on
+// every load, and the generator reads the current hero (class, traits, game changers, clvl,
+// game mode). The same recipe can therefore become a different item for another hero (morphing).
+// To prevent that, every shared item keeps its recipe untouched plus a snapshot of the hero that
+// put it in (the owner). On display the item is regenerated for the owner and for the current
+// hero; if the results differ, the item is locked for the current hero: it is shown as its owner
+// sees it, it cannot be taken, and its recipe is written back byte for byte.
+// ---------------------------------------------------------------------------------------------
+bool StashSharedMode = false;                 // the stash panel currently shows the shared stash
+StashTab SharedStashTabs[Stash_TotalTabs];
+static int SharedStashCurrentTab = 0;         // saved in the shared stash file
+static int SharedStashTabsPurchased = 1;      // saved in the shared stash file
+static bool SharedStashReady = false;         // the file was read (or does not exist yet) without errors
+static bool SharedStashEnabled = false;       // SharedStash config option as it was when the hero was loaded
+static constexpr int SharedStash_TabCostMultiplier = 3; // a shared tab costs 3x its personal equivalent
+static constexpr uint SharedStashSignature = 'TSHS';
+static constexpr uint SharedStashFileVersion = 1;
+static const char SharedStashFileName[] = "th4_shared_stash.sss";
+
+// Every hero property read by the item generator (RecreateItem and everything it calls)
+struct SharedStashOwner
+{
+	int   classId;
+	int   subclassId;
+	int   specializationId;
+	int   fullClassId;
+	int   charLevel;
+	int   gameMode;
+	uchar traits[4];
+	uchar reserved[4]; // explicit padding: the size must not depend on the packing setting (project builds with /Zp1)
+	i64   gameChanger;
+};
+static_assert( sizeof(SharedStashOwner) == 40, "SharedStashOwner is a part of the shared stash file format" );
+
+struct SharedStashSlot
+{
+	LastItemInfo     raw;    // the recipe, exactly as it was put in
+	SharedStashOwner owner;  // the hero who put it in
+	bool             locked; // runtime only: the item would morph for the current hero
+};
+static SharedStashSlot SharedStashSlots[Stash_TotalTabs][Stash_MaxSlot];
+
+static StashTab* CurStashTabs()  { return StashSharedMode ? SharedStashTabs : StashTabs; }
+static int& CurStashTab()        { return StashSharedMode ? SharedStashCurrentTab : AdditionalStateData.StashCurrentTab; }
+static int& CurStashTabsBought() { return StashSharedMode ? SharedStashTabsPurchased : AdditionalStateData.StashTabsPurchased; }
+
+//----- (thmod) -----------------------------------------------------------
+bool SharedStashActive()
+{
+	return SharedStashEnabled && SharedStashReady
+		&& MaxCountOfPlayersInGame == 1
+		&& is( GameMode, GM_EASY, GM_NORMAL )
+		&& is( Players[CurrentPlayerIndex].gameMode, GM_EASY, GM_NORMAL );
+}
+
+//----- (thmod) -----------------------------------------------------------
+static SharedStashOwner SharedStash_CaptureOwner( const Player& player )
+{
+	static_assert( sizeof(player.traits) / sizeof(player.traits[0]) == 4, "SharedStashOwner.traits size" );
+	SharedStashOwner owner {};
+	owner.classId          = player.ClassID;
+	owner.subclassId       = player.subclassID;
+	owner.specializationId = player.specializationID;
+	owner.fullClassId      = player.fullClassId;
+	owner.charLevel        = player.CharLevel;
+	owner.gameMode         = player.gameMode;
+	for( int i = 0; i < 4; ++i ) owner.traits[i] = (uchar)player.traits[i];
+	owner.gameChanger      = player.gameChanger;
+	return owner;
+}
+
+//----- (thmod) -----------------------------------------------------------
+static void SharedStash_ApplyOwner( Player& player, const SharedStashOwner& owner )
+{
+	player.ClassID          = (PLAYER_CLASS)owner.classId;
+	player.subclassID       = (PLAYER_SUBLASS)owner.subclassId;
+	player.specializationID = (PLAYER_SPECIALIZATION)owner.specializationId;
+	player.fullClassId      = (PLAYER_FULL_CLASS)owner.fullClassId;
+	player.CharLevel        = (short)owner.charLevel;
+	player.gameMode         = (GAME_MODE)owner.gameMode;
+	for( int i = 0; i < 4; ++i ) player.traits[i] = (TraitId)owner.traits[i];
+	player.gameChanger      = owner.gameChanger;
+}
+
+//----- (thmod) -----------------------------------------------------------
+static bool SharedStash_SameOwner( const SharedStashOwner& a, const SharedStashOwner& b )
+{
+	return a.classId == b.classId && a.subclassId == b.subclassId && a.specializationId == b.specializationId
+		&& a.fullClassId == b.fullClassId && a.charLevel == b.charLevel && a.gameMode == b.gameMode
+		&& a.traits[0] == b.traits[0] && a.traits[1] == b.traits[1] && a.traits[2] == b.traits[2] && a.traits[3] == b.traits[3]
+		&& a.gameChanger == b.gameChanger;
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Regenerates the item from its recipe as the given hero would see it
+static void SharedStash_Regenerate( const LastItemInfo& raw, const SharedStashOwner& owner, bool forceIdentified, Item& out )
+{
+	Player& player = Players[CurrentPlayerIndex];
+	const SharedStashOwner current = SharedStash_CaptureOwner( player );
+	SharedStash_ApplyOwner( player, owner );
+	LastItemInfo info = raw;
+	if( forceIdentified ) info.magicLevelAndIdentified |= 1; // compare hidden affixes of unidentified items too
+	LoadItem( &info, &out, true );
+	SharedStash_ApplyOwner( player, current );
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Gameplay-relevant result of the generation. Graphics, mirroring, names (localized) and prices
+// are left out: unique graphics depend on the class by design and are not a morph.
+static bool SharedStash_SameItem( const Item& a, const Item& b )
+{
+	#define SAME(field) (a.field == b.field)
+	if( !( SAME(baseItemIndex) && SAME(ItemCode) && SAME(MagicLevel) && SAME(MagicCode) && SAME(TypeID)
+	    && SAME(EquippedLocation) && SAME(SpellIndex) && SAME(UniqueItemIndex)
+	    && SAME(MinDamage) && SAME(MaxDamage) && SAME(ArmorClass) && SAME(BaseDurability) && SAME(BaseCharges)
+	    && SAME(RequiredLevel) && SAME(RequiredStrength) && SAME(RequiredMagic) && SAME(RequiredDexterity) && SAME(RequiredVitality)
+	    && SAME(socketsBase) && SAME(socketsAdded) && SAME(socketsAmount)
+	    && SAME(overTime) && SAME(damageFromEnemies) && SAME(minThorns) && SAME(maxThorns)
+	    && SAME(minMeleeAbsorbPercent) && SAME(maxMeleeAbsorbPercent) && SAME(minArrowAbsorbPercent) && SAME(maxArrowAbsorbPercent) ) ){
+		return false;
+	}
+	for( int i = 0; i < (int)countof(a.effect); ++i ){
+		const Effect& ea = a.effect[i];
+		const Effect& eb = b.effect[i];
+		if( ea.id != eb.id || ea.type != eb.type || ea.minVal != eb.minVal || ea.maxVal != eb.maxVal || ea.chance != eb.chance ){
+			return false;
+		}
+	}
+	#undef SAME
+	return true;
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Regenerates the shared tab for the current hero and decides which items are locked
+static void SharedStash_RefreshTab( int tabIndex )
+{
+	StashTab& tab = SharedStashTabs[tabIndex];
+	const SharedStashOwner current = SharedStash_CaptureOwner( Players[CurrentPlayerIndex] );
+	for( int i = 0; i < tab.itemCount; ++i ){
+		SharedStashSlot& slot = SharedStashSlots[tabIndex][i];
+		slot.locked = false;
+		if( ! SharedStash_SameOwner( slot.owner, current ) ){
+			Item forOwner {}, forCurrent {};
+			SharedStash_Regenerate( slot.raw, slot.owner, true, forOwner );
+			SharedStash_Regenerate( slot.raw, current, true, forCurrent );
+			slot.locked = ! SharedStash_SameItem( forOwner, forCurrent );
+		}
+		Item& item = tab.items[i];
+		SharedStash_Regenerate( slot.raw, slot.locked ? slot.owner : current, false, item );
+		item.IsReqMet = ! slot.locked && CheckItemReq( CurrentPlayerIndex, &item );
+		if( ! slot.locked ){
+			RecalcBookReq( item, CurrentPlayerIndex );
+		}
+	}
+}
+
+//----- (thmod) -----------------------------------------------------------
+static bool Stash_IsItemLocked( int itemIndex )
+{
+	if( ! StashSharedMode ) return false;
+	const int tabIndex = CurStashTab();
+	return itemIndex >= 0 && itemIndex < SharedStashTabs[tabIndex].itemCount && SharedStashSlots[tabIndex][itemIndex].locked;
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Returns true (and tells the player) if the item can't be touched by the current hero
+static bool Stash_RefuseLockedItem( int itemIndex )
+{
+	if( ! Stash_IsItemLocked( itemIndex ) ) return false;
+	AddWorldMessage( (char*)L("Locked: item incompatible with current character") );
+	PlayGlobalSound( S_1515 );
+	return true;
+}
+
+//----- (thmod) -----------------------------------------------------------
+bool StashPanel_IsSharedStashSlot( int slotId )
+{
+	return StashSharedMode && StashPanel_IsStashSlot( slotId );
+}
+
+//----- (thmod) -----------------------------------------------------------
+bool StashPanel_IsLockedSlot( int slotId )
+{
+	return StashPanel_IsSharedStashSlot( slotId ) && Stash_IsItemLocked( slotId - Stash_SlotIDStart );
+}
+
+//----- (thmod) -----------------------------------------------------------
+// The item arrays of a tab are compacted by moving items around; keep the shared data in sync
+static void Stash_OnItemMoved( int tabIndex, int from, int to )
+{
+	if( StashSharedMode ){
+		SharedStashSlots[tabIndex][to] = SharedStashSlots[tabIndex][from];
+	}
+}
+
+//----- (thmod) -----------------------------------------------------------
+static void Stash_OnItemAdded( int tabIndex, int itemIndex, const Item& item )
+{
+	if( StashSharedMode ){
+		SharedStashSlot& slot = SharedStashSlots[tabIndex][itemIndex];
+		SaveItem( &slot.raw, &item );
+		slot.owner = SharedStash_CaptureOwner( Players[CurrentPlayerIndex] );
+		slot.locked = false;
+	}
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Sorts the items of the current tab (and their shared data, if any) without breaking the pairing
+template<class Less> static void Stash_SortCurrentTab( Less less )
+{
+	const int tabIndex = CurStashTab();
+	StashTab& tab = CurStashTabs()[tabIndex];
+	const int count = tab.itemCount;
+	vector<int> order( count );
+	for( int i = 0; i < count; ++i ) order[i] = i;
+	std::stable_sort( order.begin(), order.end(), [&]( int a, int b ){ return less( tab.items[a], tab.items[b] ); } );
+	vector<Item> items( count );
+	vector<SharedStashSlot> slots( StashSharedMode ? count : 0 );
+	for( int i = 0; i < count; ++i ){
+		items[i] = tab.items[order[i]];
+		if( StashSharedMode ) slots[i] = SharedStashSlots[tabIndex][order[i]];
+	}
+	for( int i = 0; i < count; ++i ){
+		tab.items[i] = items[i];
+		if( StashSharedMode ) SharedStashSlots[tabIndex][i] = slots[i];
+	}
+}
+
+//----- (thmod) -----------------------------------------------------------
+static void SharedStash_GetPath( char (&path)[MAX_PATH] )
+{
+	path[0] = 0;
+	if( ! GetModuleFileNameA( HInstance, path, MAX_PATH ) ){
+		path[0] = 0;
+		return;
+	}
+	if( char* pathEnd = strrchr( path, '\\' ) ){
+		*pathEnd = 0;
+	}
+	if( strlen( path ) + 2 + strlen( SaveFolders[0] ) + sizeof(SharedStashFileName) >= MAX_PATH ){
+		path[0] = 0;
+		return;
+	}
+	strcat( path, "\\" );
+	if( SaveFolder ) strcat( path, SaveFolders[0] ); // single player save folder
+	strcat( path, SharedStashFileName );
+}
+
+//----- (thmod) -----------------------------------------------------------
+static void SharedStash_Clear()
+{
+	for( auto& tab : SharedStashTabs ){
+		memset( &tab, 0, sizeof(StashTab) );
+	}
+	memset( SharedStashSlots, 0, sizeof(SharedStashSlots) );
+	SharedStashCurrentTab = 0;
+	SharedStashTabsPurchased = 1;
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Called with the rest of the hero data (character load and Load Game), so unsaved changes of
+// the shared stash are dropped together with the hero's ones
+void SharedStash_Load()
+{
+	SharedStashReady = false;
+	// the option is taken when the hero is loaded: switching it in the middle of a session would
+	// otherwise skip saving the shared stash after items had already been moved between the two
+	SharedStashEnabled = SharedStash;
+	SharedStash_Clear();
+
+	char path[MAX_PATH];
+	SharedStash_GetPath( path );
+	if( ! path[0] ) return;
+
+	FILE* file = fopen( path, "rb" );
+	if( ! file ){
+		// no file yet -- start empty; any other reason -- keep the stash off, so the file is not overwritten
+		const bool missing = GetFileAttributesA( path ) == INVALID_FILE_ATTRIBUTES;
+		const DWORD error = GetLastError();
+		SharedStashReady = missing && ( error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND );
+		return;
+	}
+	fseek( file, 0, SEEK_END );
+	long fileSize = ftell( file );
+	fseek( file, 0, SEEK_SET );
+	vector<uchar> data( fileSize > 0 ? fileSize : 0 );
+	bool ok = fileSize > 0 && fread( data.data(), 1, fileSize, file ) == (size_t)fileSize;
+	fclose( file );
+
+	uint size = ok ? DecodeFile( data.data(), fileSize, CryptKey ) : 0;
+	size_t pos = 0;
+	auto get = [&]( void* dst, size_t bytes )->bool {
+		if( pos + bytes > size ) return false;
+		memcpy( dst, data.data() + pos, bytes );
+		pos += bytes;
+		return true;
+	};
+	uint signature = 0, version = 0, saveVersion = 0;
+	ok = size > 0
+		&& get( &signature, 4 ) && signature == SharedStashSignature
+		&& get( &version, 4 ) && version == SharedStashFileVersion
+		&& get( &saveVersion, 4 )
+		&& get( &SharedStashTabsPurchased, 4 )
+		&& get( &SharedStashCurrentTab, 4 );
+	for( int tabIndex = 0; ok && tabIndex < Stash_TotalTabs; ++tabIndex ){
+		StashTab& tab = SharedStashTabs[tabIndex];
+		ok = get( &tab.itemCount, 4 ) && tab.itemCount >= 0 && tab.itemCount <= Stash_MaxSlot
+			&& get( tab.usedFlags, sizeof(tab.usedFlags) );
+		for( short usedFlag : tab.usedFlags ){
+			if( abs( usedFlag ) > tab.itemCount ) ok = false;
+		}
+		for( int i = 0; ok && i < tab.itemCount; ++i ){
+			SharedStashSlot& slot = SharedStashSlots[tabIndex][i];
+			ok = get( &slot.raw, sizeof(LastItemInfo) ) && get( &slot.owner, sizeof(SharedStashOwner) );
+		}
+	}
+	if( ! ok ){
+		SharedStash_Clear();
+		MessageBoxA( NULL, "The shared stash file is damaged and was not loaded.\n"
+			"The shared stash is disabled for this session, so the file will not be overwritten.",
+			"Shared stash", MB_TASKMODAL | MB_ICONERROR );
+		return;
+	}
+	LimitToRange( SharedStashTabsPurchased, 1, (int)Stash_TotalTabs );
+	LimitToRange( SharedStashCurrentTab, 0, SharedStashTabsPurchased - 1 );
+	SharedStashReady = true;
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Called from UpdatePlayerFile before the hero archive is written: if anything goes wrong between
+// the two writes, an item can end up in both places, but never in none
+void SharedStash_Save()
+{
+	if( ! SharedStashActive() ) return;
+
+	vector<uchar> data;
+	data.reserve( 64 * 1024 );
+	auto put = [&data]( const void* src, size_t bytes ){
+		const uchar* begin = (const uchar*)src;
+		data.insert( data.end(), begin, begin + bytes );
+	};
+	const uint signature = SharedStashSignature, version = SharedStashFileVersion, saveVersion = CurSaveVersion;
+	put( &signature, 4 );
+	put( &version, 4 );
+	put( &saveVersion, 4 );
+	put( &SharedStashTabsPurchased, 4 );
+	put( &SharedStashCurrentTab, 4 );
+	for( int tabIndex = 0; tabIndex < Stash_TotalTabs; ++tabIndex ){
+		const StashTab& tab = SharedStashTabs[tabIndex];
+		put( &tab.itemCount, 4 );
+		put( tab.usedFlags, sizeof(tab.usedFlags) );
+		for( int i = 0; i < tab.itemCount; ++i ){
+			const SharedStashSlot& slot = SharedStashSlots[tabIndex][i];
+			put( &slot.raw, sizeof(LastItemInfo) );
+			put( &slot.owner, sizeof(SharedStashOwner) );
+		}
+	}
+	const uint size = (uint)data.size();
+	const uint blockSize = CalcEncodeDstBytes( size );
+	data.resize( blockSize );
+	EncodeFile( data.data(), size, blockSize, CryptKey );
+
+	char path[MAX_PATH];
+	SharedStash_GetPath( path );
+	if( ! path[0] ) return;
+	char tempPath[MAX_PATH + 8];
+	sprintf( tempPath, "%s.tmp", path );
+	FILE* file = fopen( tempPath, "wb" );
+	bool ok = file && fwrite( data.data(), 1, blockSize, file ) == blockSize;
+	if( file ) ok = fclose( file ) == 0 && ok;
+	if( ok && AutoBackup && GetFileAttributesA( path ) != INVALID_FILE_ATTRIBUTES ){
+		char backupPath[MAX_PATH + 8];
+		sprintf( backupPath, "%s.bak", path );
+		CopyFileA( path, backupPath, FALSE );
+	}
+	if( ! ok || ! MoveFileExA( tempPath, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH ) ){
+		DeleteFileA( tempPath );
+		AddWorldMessage( (char*)"Unable to save the shared stash" );
+	}
+}
+
 //----- (th2) -------------------------------------------------------------
 void __fastcall RecalcAvailableTabs() {
-	StashTabsPurchased = StashTabsPurchased < 1 ? 1 : StashTabsPurchased > Stash_TotalTabs ? Stash_TotalTabs : StashTabsPurchased;
-	for (int i = 0; i < StashTabsPurchased; ++i) AvailableStashTabs[i] = true;
-	for (int i = StashTabsPurchased; i < Stash_TotalTabs; ++i) AvailableStashTabs[i] = false;
+	CurStashTabsBought() = CurStashTabsBought() < 1 ? 1 : CurStashTabsBought() > Stash_TotalTabs ? Stash_TotalTabs : CurStashTabsBought();
+	for (int i = 0; i < CurStashTabsBought(); ++i) AvailableStashTabs[i] = true;
+	for (int i = CurStashTabsBought(); i < Stash_TotalTabs; ++i) AvailableStashTabs[i] = false;
 }
 
 //----- (th2) -------------------------------------------------------------
 void __fastcall RecalcPageIndex() {
-	StashLastAvailablePageIndex = (StashTabsPurchased - 1) / Stash_TabButtonsAmount;
+	StashLastAvailablePageIndex = (CurStashTabsBought() - 1) / Stash_TabButtonsAmount;
 }
 
 //----- (th2) -------------------------------------------------------------
 void __fastcall RecalcTabButtonsState() {
-	StashCurrentPageIndex = StashCurrentTab / Stash_TabButtonsAmount;
+	StashCurrentPageIndex = CurStashTab() / Stash_TabButtonsAmount;
 	for (int i = 0; i < Stash_TabButtonsAmount; ++i) {
 		StashTabButtonsStates[i] = AvailableStashTabs[StashCurrentPageIndex * Stash_TabButtonsAmount + i] ? BTN_ACTIVE : BTN_DISABLED;
 	}
@@ -66,7 +449,8 @@ void __fastcall RecalcTabButtonsState() {
 //----- (th2) -------------------------------------------------------------
 int __fastcall StashTabCost()
 {
-	return BuyPrice(StashTabsPurchased * Stash_TabCostRatio);
+	const int price = CurStashTabsBought() * Stash_TabCostRatio;
+	return BuyPrice(StashSharedMode ? price * SharedStash_TabCostMultiplier : price); // (thmod) shared tabs cost 3x
 }
 
 //----- (th2) -------------------------------------------------------------
@@ -94,7 +478,7 @@ bool IsItemAllowedForStash( const Item* item )
 //----- (th2) -------------------------------------------------------------
 void Stash_RecalcTab( int index)
 {
-    StashCurrentTab = index;
+    CurStashTab() = index;
     StashPanel_RecalcItemsReq();
 	StashReInit();
 }
@@ -102,13 +486,13 @@ void Stash_RecalcTab( int index)
 //----- (th2) -------------------------------------------------------------
 int CalcCurrentVisualStashPage()
 {
-    return StashCurrentTab / Stash_TabsOnPage;
+    return CurStashTab() / Stash_TabsOnPage;
 }
 
 //----- (th2) -------------------------------------------------------------
 int CalcCurrentVisualStashTabOnPage()
 {
-    return StashCurrentTab % Stash_TabsOnPage;
+    return CurStashTab() % Stash_TabsOnPage;
 }
 
 //----- (th2) -------------------------------------------------------------
@@ -120,7 +504,7 @@ int CalcStashTabOnPageStartIndex()
 //----- (th2) -------------------------------------------------------------
 int CalcStashTabOnPageIndex()
 {
-    return StashCurrentTab - CalcStashTabOnPageStartIndex() + 1;
+    return CurStashTab() - CalcStashTabOnPageStartIndex() + 1;
 }
 
 //----- (th2) -------------------------------------------------------------
@@ -150,17 +534,17 @@ void VisualStashGotoNextPage()
 //----- (th2) -------------------------------------------------------------
 void VisualStashGotoPrevTab()
 {
-    --StashCurrentTab;
-    Wrap(StashCurrentTab, StashTabsPurchased);
-    Stash_RecalcTab(StashCurrentTab);
+    --CurStashTab();
+    Wrap(CurStashTab(), CurStashTabsBought());
+    Stash_RecalcTab(CurStashTab());
 }
 
 //----- (th2) -------------------------------------------------------------
 void VisualStashGotoNextTab()
 {
-    ++StashCurrentTab;
-    Wrap(StashCurrentTab, StashTabsPurchased);
-    Stash_RecalcTab(StashCurrentTab);
+    ++CurStashTab();
+    Wrap(CurStashTab(), CurStashTabsBought());
+    Stash_RecalcTab(CurStashTab());
 }
 
 //----- (th2) -------------------------------------------------------------
@@ -270,7 +654,7 @@ void GetSuccessionArray(uchar inventoryWidth, uchar inventoryHeight, uchar itemW
 //----- (th2) -------------------------------------------------------------
 void __fastcall DrawStashItems()
 {
-    auto& stashTab = StashTabs[StashCurrentTab];	// (th4) not const: IsReqMet is refreshed below
+    auto& stashTab = CurStashTabs()[CurStashTab()];	// (th4) not const: IsReqMet is refreshed below
 	extern bool InventoryBackgroundOldStyle;
 	extern bool InventoryTurnOffRedColorItems;
 
@@ -304,7 +688,7 @@ void __fastcall DrawStashItems()
             // (th4) Same staleness as the shop: RecalcItemsReqMet() walks inventory, belt
             // and talismans only, so stashed items keep the flag they had when they were
             // put away and stay red after a stat-up. Re-test here.
-            inventorySlot.IsReqMet = CheckItemReq( CurrentPlayerIndex, &inventorySlot );
+            inventorySlot.IsReqMet = CheckItemReq( CurrentPlayerIndex, &inventorySlot ) && !Stash_IsItemLocked( invItemIndex - 1 ); // (thmod) locked shared items are red
             int graphicValue = inventorySlot.GraphicValue + CM_12_ITEMS_PICS_START;
             char itemWidthTable = ItemWidthTable[graphicValue];
             
@@ -334,15 +718,31 @@ void __fastcall DrawStashItems()
 }
 
 //----- (th2) -------------------------------------------------------------
-void __fastcall StashPanel_Open()
+static void StashPanel_OpenMode( bool shared )
 {
+	StashSharedMode = shared; // (thmod)
 	IsChatHistoryVisible = false;
 	IsStashPanelVisible = true;
 	IsINVPanelVisible = true;
 	Stash_ItemsSortSwitchState = 0;
-	Stash_RecalcTab(StashCurrentTab);
+	Stash_RecalcTab(CurStashTab());
 	CurrentDialogIndex = PD_0_None;
 	PlayGlobalSound(S_75_I_TITLEMOV);
+}
+
+//----- (th2) -------------------------------------------------------------
+void __fastcall StashPanel_Open()
+{
+	StashPanel_OpenMode( false );
+}
+
+//----- (thmod) -----------------------------------------------------------
+// Gillian's "Open safe deposit box"
+void __fastcall StashPanel_OpenShared()
+{
+	if( SharedStashActive() ){
+		StashPanel_OpenMode( true );
+	}
 }
 
 //----- (th2) -------------------------------------------------------------
@@ -359,8 +759,8 @@ void __fastcall StashPanel_BuyTab()
 	int totalGold = Players[CurrentPlayerIndex].TotalGold;
 	if (totalGold >= StashTabPrice)	{
 		ClearGoldByInventoryAsPrice(StashTabPrice);
-		++StashTabsPurchased;
-		Stash_RecalcTab(StashTabsPurchased - 1);
+		++CurStashTabsBought();
+		Stash_RecalcTab(CurStashTabsBought() - 1);
 		PlayGlobalSound(S_1532);
 	}
 	else {
@@ -371,7 +771,7 @@ void __fastcall StashPanel_BuyTab()
 //----- (th2) -------------------------------------------------------------
 short __fastcall Stash_GetFreeCells(char width, char height, char direction)
 {
-	StashTab& currentTab = StashTabs[StashCurrentTab];
+	StashTab& currentTab = CurStashTabs()[CurStashTab()];
 	short(&cellsIn2D)[Stash_SlotsY][Stash_SlotsX] = currentTab.usedFlagsAlt;
 
 	short index = -1;
@@ -411,7 +811,7 @@ short __fastcall Stash_GetFreeCells(char width, char height, char direction)
 //----- (th2) -------------------------------------------------------------
 void Stash_SortItemsInTabBySize()
 {
-	StashTab& currentTab = StashTabs[StashCurrentTab];
+	StashTab& currentTab = CurStashTabs()[CurStashTab()];
 
 	memset(currentTab.usedFlags, 0, sizeof(currentTab.usedFlags)); // clear tab
 
@@ -487,16 +887,14 @@ void Stash_SortItemsInTabBySize()
 //----- (th2) -------------------------------------------------------------
 void Stash_SortItemsInList()
 {
-	StashTab& currentTab = StashTabs[StashCurrentTab];
-	Item* first = &currentTab.items[0];
-	Item* last = &currentTab.items[currentTab.itemCount];
+	StashTab& currentTab = CurStashTabs()[CurStashTab()];
 
 	if (currentTab.itemCount > 1){
 		switch (Stash_ItemsSortSwitchState) {
-		case 0: std::sort(first, last, [](const Item& a, const Item& b) { return a.quality > b.quality; }); break;
-		case 1: std::sort(first, last, [](const Item& a, const Item& b) { return a.MagicLevel > b.MagicLevel; }); break;
-		case 2: std::sort(first, last, [](const Item& a, const Item& b) { return a.Price > b.Price; }); break;
-		case 3: std::sort(first, last, [](const Item& a, const Item& b) { return a.GraphicValue > b.GraphicValue; });
+		case 0: Stash_SortCurrentTab([](const Item& a, const Item& b) { return a.quality > b.quality; }); break;
+		case 1: Stash_SortCurrentTab([](const Item& a, const Item& b) { return a.MagicLevel > b.MagicLevel; }); break;
+		case 2: Stash_SortCurrentTab([](const Item& a, const Item& b) { return a.Price > b.Price; }); break;
+		case 3: Stash_SortCurrentTab([](const Item& a, const Item& b) { return a.GraphicValue > b.GraphicValue; });
 			break;
 		}
 		if (++Stash_ItemsSortSwitchState > 3)
@@ -632,13 +1030,13 @@ int GetSlotMouseAbove_Stash()
 	}
 	Item* item = nullptr;
 
-	int itemNumber = abs(StashTabs[StashCurrentTab].usedFlags[cellIndex]);
+	int itemNumber = abs(CurStashTabs()[CurStashTab()].usedFlags[cellIndex]);
 	if( !itemNumber ){
 		return -1;
 	}
 	int itemIndex = itemNumber - 1;
 	int inventoryCellIndex = itemIndex + Stash_SlotIDStart;
-	item = &StashTabs[StashCurrentTab].items[itemIndex];
+	item = &CurStashTabs()[CurStashTab()].items[itemIndex];
 
 	if( item->ItemCode == IC_M1_NONE ){
 		return -1;
@@ -666,7 +1064,7 @@ void __fastcall StashPanel_MouseMove()
 
 	currsorOverButton = CursorIntoDisplayObject(StashBuyButton);
 	StashBuyButtonState = Is_LMB_Pressed && currsorOverButton;
-	if (StashTabsPurchased < Stash_TotalTabs && currsorOverButton) {
+	if (CurStashTabsBought() < Stash_TotalTabs && currsorOverButton) {
 		int totalGold = Players[CurrentPlayerIndex].TotalGold;
 		Tooltip_SetOffsetTop();
 		Tooltip_Clear();
@@ -711,7 +1109,7 @@ void __fastcall StashPanel_MouseClick()
 	if (CursorIntoDisplayObject(StashChangePageButtons[1])) VisualStashGotoNextPage();
 
 	if (CursorIntoDisplayObject(StashExitButton)) StashPanel_Close();
-	if (StashTabsPurchased < Stash_TotalTabs && CursorIntoDisplayObject(StashBuyButton)) StashPanel_BuyTab();
+	if (CurStashTabsBought() < Stash_TotalTabs && CursorIntoDisplayObject(StashBuyButton)) StashPanel_BuyTab();
 	if (CursorIntoDisplayObject(StashSortButton)) StashPanel_SortItems();
 
 	Is_LMB_Pressed = false;
@@ -774,7 +1172,7 @@ void DrawButtons()
 			textOffset = 2;
 			textColor = C_7_Grey;
 		}
-		else if (StashCurrentTab % Stash_TabsOnPage == i) {
+		else if (CurStashTab() % Stash_TabsOnPage == i) {
 			tabState = BTN_PRESSED;
 			textOffset = 0;
 			textColor = C_0_White;
@@ -823,7 +1221,7 @@ void DrawButtons()
 	}
 
 	Surface_DrawCEL(StashSortButton.Left + Screen_LeftBorder, StashSortButton.Down + Screen_TopBorder, VisualTradeBtnsCEL, StashSortButtonState ? 28 : 27, StashSortButton.Width);
-	if(StashTabsPurchased < Stash_TotalTabs)
+	if(CurStashTabsBought() < Stash_TotalTabs)
 		Surface_DrawCEL(StashBuyButton.Left + Screen_LeftBorder, StashBuyButton.Down + Screen_TopBorder, VisualTradeBtnsCEL, StashBuyButtonState ? 12 : 11, StashBuyButton.Width);
 	Surface_DrawCEL(StashExitButton.Left + Screen_LeftBorder, StashExitButton.Down + Screen_TopBorder, VisualTradeBtnsCEL, StashExitButtonState ? 20 : 19, StashExitButton.Width);
 }
@@ -840,7 +1238,11 @@ void __fastcall StashPanel_Draw()
 //----- (th2) -------------------------------------------------------------
 void __fastcall StashPanel_RecalcItemsReq()
 {
-	StashTab& stashTab = StashTabs[StashCurrentTab];
+	if( StashSharedMode ){ // (thmod) regenerate for the current hero and lock what would morph
+		SharedStash_RefreshTab( CurStashTab() );
+		return;
+	}
+	StashTab& stashTab = CurStashTabs()[CurStashTab()];
 	for( int currentStashItemIndex = 0; currentStashItemIndex < stashTab.itemCount; ++currentStashItemIndex ){
 	    Item& item = stashTab.items[currentStashItemIndex];
 	    UpdateItem( item );
@@ -851,7 +1253,7 @@ void __fastcall StashPanel_RecalcItemsReq()
 //----- (th2) -------------------------------------------------------------
 bool __fastcall ItemPanel_PutItemInStorage( int playerIndex, int aCellID, int aWidth, int aHeight, int isNotRoomTest)
 {
-	StashTab& stash = StashTabs[StashCurrentTab];
+	StashTab& stash = CurStashTabs()[CurStashTab()];
 
 	int countFreeInvSlots = 0;
 	for(short usedFlag : stash.usedFlags){
@@ -906,6 +1308,7 @@ bool __fastcall ItemPanel_PutItemInStorage( int playerIndex, int aCellID, int aW
 	// (rt) Placing the item itself. haveRoomForItem will most likely be 1, since otherwise the previous loop exits immediately
 	stash.items[stash.itemCount] = player.ItemOnCursor;
 	stash.itemCount++;
+	Stash_OnItemAdded( CurStashTab(), stash.itemCount - 1, player.ItemOnCursor ); // (thmod) shared stash
 	currentInvYPosition = aCellID / Stash_SlotsX;
 
 	if( currentInvYPosition < 0 ){
@@ -964,7 +1367,7 @@ void __fastcall Stash_PutCursorItem(int playerIndex, int mX, int mY)
 		return;
 	}
 
-	StashTab& stash = StashTabs[StashCurrentTab];
+	StashTab& stash = CurStashTabs()[CurStashTab()];
 	newCursorGraphics = 1;
 	itemForReplacing = 0;
 	int currentInvYPosition;
@@ -1002,6 +1405,10 @@ void __fastcall Stash_PutCursorItem(int playerIndex, int mX, int mY)
 		currentInvYPosition++;
 	}
 
+	if( itemForReplacing && Stash_RefuseLockedItem( itemForReplacing - 1 ) ){ // (thmod) can't swap out a locked shared item
+		return;
+	}
+
 	if( playerIndex == CurrentPlayerIndex ){ // (rt) If placing for the current player, play the corresponding sound
 		PlayGlobalSound(Flip_InventorySound[ItemFlipTable[player.ItemOnCursor.GraphicValue]]);
 	}
@@ -1018,7 +1425,7 @@ void __fastcall Stash_PutCursorItem(int playerIndex, int mX, int mY)
 	else if( itemForReplacing ){
 	 (rt) //if there is something to replace with
 		(rt) tempItem =  stash.items[itemForReplacing - 1]; // Saved the item being replaced into temp
-		(rt) ClearStashSlot(StashCurrentTab, itemForReplacing - 1); // The removed item gets the number equal to the item count
+		(rt) ClearStashSlot(CurStashTab(), itemForReplacing - 1); // The removed item gets the number equal to the item count
 		currentY = cellIndex / Stash_SlotsX - ((ItemHeightCells - 1) / 2);
 		if( currentY < 0 ){
 			currentY = 0;
@@ -1049,7 +1456,7 @@ void __fastcall Stash_PutCursorItem(int playerIndex, int mX, int mY)
 	}
 	else if (itemForReplacing) {
 		tempItem = stash.items[itemForReplacing - 1];
-		ClearStashSlot(StashCurrentTab, itemForReplacing - 1);
+		ClearStashSlot(CurStashTab(), itemForReplacing - 1);
 		int currentX = cellIndex % Stash_SlotsX - (ItemWidthCells - 1) / 2;
 		if (currentX < 0) currentX = 0;
 		if (currentX + ItemWidthCells > Stash_SlotsX) currentX = Stash_SlotsX - ItemWidthCells;
@@ -1076,15 +1483,16 @@ void __fastcall Stash_PutCursorItem(int playerIndex, int mX, int mY)
 bool __fastcall Stash_MoveItemToInventory(int itemIndex)
 {
 	Player& player = Players[CurrentPlayerIndex];
-	if( (uint) itemIndex >= Stash_MaxSlot ) return false; // TODO: change to >= StashTabs[StashCurrentTab].itemCount
+	if( (uint) itemIndex >= Stash_MaxSlot ) return false; // TODO: change to >= CurStashTabs()[CurStashTab()].itemCount
+	if( Stash_RefuseLockedItem( itemIndex ) ) return false; // (thmod) locked shared item
 
-	player.ItemOnCursor = StashTabs[StashCurrentTab].items[itemIndex];
+	player.ItemOnCursor = CurStashTabs()[CurStashTab()].items[itemIndex];
 	PlayGlobalSound( S_56_I_INVGRAB );
 	if( AutoPutCursorToInventoryOrDrop( false ) ){
-		ClearStashSlot(StashCurrentTab, itemIndex);
+		ClearStashSlot(CurStashTab(), itemIndex);
 	}else{
 		SetCursorGraphics(player.ItemOnCursor.GraphicValue + CM_12_ITEMS_PICS_START);
-		ClearStashSlot(StashCurrentTab, itemIndex);
+		ClearStashSlot(CurStashTab(), itemIndex);
 	}
 	return true;
 }
@@ -1115,8 +1523,12 @@ void __fastcall StashTakeCursorItem(int playerIndex, int mX, int mY)
 		return;
 	}
 	
-	StashTab& stash = StashTabs[StashCurrentTab];
+	StashTab& stash = CurStashTabs()[CurStashTab()];
 	
+	if( stash.usedFlags[cellIndex] && Stash_RefuseLockedItem( abs( stash.usedFlags[cellIndex] ) - 1 ) ){ // (thmod) locked shared item
+		return;
+	}
+
 	if( IsShiftPressed ){
 	    int itemIndex = stash.usedFlags[cellIndex];
 	    if( itemIndex != 0 ){
@@ -1144,6 +1556,7 @@ void __fastcall StashTakeCursorItem(int playerIndex, int mX, int mY)
 		stash.itemCount--;
 		if( stash.itemCount > 0 && stash.itemCount != (takeItemIndex - 1) ){
 			memcpy(&stash.items[takeItemIndex - 1], &stash.items[stash.itemCount], sizeof(Item));
+			Stash_OnItemMoved( CurStashTab(), stash.itemCount, takeItemIndex - 1 ); // (thmod) shared stash
 			for(auto& invUsed : stash.usedFlags){
                 	if( invUsed == (stash.itemCount + 1) ){
                     invUsed = invItemIndex + 1;
@@ -1172,7 +1585,7 @@ void __fastcall StashTakeCursorItem(int playerIndex, int mX, int mY)
 //----- (th2) -------------------------------------------------------------
 void __fastcall ClearStashSlot(int pageIndex, int itemIndex)
 {
-	StashTab& stash = StashTabs[pageIndex];
+	StashTab& stash = CurStashTabs()[pageIndex];
     if( stash.itemCount <= 0 ) return;
 
 	for(auto& usedFlag : stash.usedFlags){
@@ -1183,6 +1596,7 @@ void __fastcall ClearStashSlot(int pageIndex, int itemIndex)
 	--stash.itemCount;
 	if( stash.itemCount > 0 && stash.itemCount != itemIndex ){// (rt) If there are items and the removed item isn't the last one
 		stash.items[itemIndex] = stash.items[stash.itemCount]; // (rt) move the last item in the array to the removed item's index
+		Stash_OnItemMoved( pageIndex, stash.itemCount, itemIndex ); // (thmod) shared stash
 
 		for(auto& invUsed : stash.usedFlags){
 			if( invUsed == stash.itemCount + 1 ){
@@ -1242,5 +1656,5 @@ bool __fastcall StashPanel_IsStashSlot( int slotId )
 Item* __fastcall StashPanel_GetItemBySlotId( int slotId )
 {
     if( slotId < Stash_SlotIDStart ) slotId = Stash_SlotIDStart; // assert
-    return &StashTabs[StashCurrentTab].items[ slotId - Stash_SlotIDStart ];
+    return &CurStashTabs()[CurStashTab()].items[ slotId - Stash_SlotIDStart ];
 }

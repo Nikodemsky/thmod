@@ -150,6 +150,7 @@ void BackupSaveIfNeed( int slotIndex )
 void UpdatePlayerFile()
 {
 	if( EnforceNoSave ){ return; }
+	SharedStash_Save(); // (thmod) before the hero: a failure in between can't lose an item
 	int slotIndex = GetSlotByHeroName(Players[CurrentPlayerIndex].playerName);
 	BackupSaveIfNeed(slotIndex);
 	LastPlayerInfo heroData;
@@ -636,6 +637,7 @@ void LoadCurrentPlayerInfo()
 	ReadWeaponSwapInfoFromSave( archiveHandle, WeaponSwapItems );
 	
 	ReadStashInfoFromSave( archiveHandle );
+	SharedStash_Load(); // (thmod)
 	ReadHotkeysInfoFromSave( archiveHandle );
 	ReadAdditionalHeroDataFromSave( archiveHandle );
 	Transmute_ReadFromSave( archiveHandle );
@@ -760,6 +762,7 @@ void* __fastcall ReadSaveFile( char *fileName, uint *loadedSize, int loadAdditio
 		ClearAltWeapons();
 		ReadWeaponSwapInfoFromSave( archiveHandle, WeaponSwapItems );
 		ReadStashInfoFromSave( archiveHandle );
+		SharedStash_Load(); // (thmod)
 		ReadHotkeysInfoFromSave( archiveHandle );
 		ReadAdditionalHeroDataFromSave( archiveHandle );
 		Transmute_ReadFromSave( archiveHandle );

@@ -2648,6 +2648,12 @@ bool	__fastcall	AutoPutCursorItemToStash(int playerIndex);	//	th2	Stash	124
 void __fastcall RecalcBookReq(Item& item, int playerIndex);
 void	__fastcall	StashPanel_RecalcItemsReq();	//	th2	Stash	333
 void	__fastcall	StashPanel_Open();	//	th2	Stash	1116
+void __fastcall StashPanel_OpenShared(); // (thmod) shared stash
+bool SharedStashActive(); // (thmod)
+void SharedStash_Load(); // (thmod)
+void SharedStash_Save(); // (thmod)
+bool StashPanel_IsSharedStashSlot( int slotId ); // (thmod)
+bool StashPanel_IsLockedSlot( int slotId ); // (thmod)
 bool __fastcall CursorIntoStashButton(const DisplayObject& button);
 void __fastcall StashPanel_MouseMove();
 void __fastcall StashPanel_MouseClick();

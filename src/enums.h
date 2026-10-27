@@ -8056,6 +8056,7 @@ enum PLAYER_TRADE: int
 	PT_DialogRows_GilianMain_9_ActionLabel = 9,
 	PT_DialogRows_GilianMain_12_Talk = 12,
 	PT_DialogRows_GilianMain_14_Stash = 14,
+	PT_DialogRows_GilianMain_16_SharedStash = 16, // (thmod)
 	PT_DialogRows_GilianMain_18_Leave = 18,
 
 	PT_DialogRows_22_FarnhamMain_Logo = 2,
