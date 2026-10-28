@@ -3205,7 +3205,9 @@ void __fastcall Tooltip_ShowItemInfo( int slot )
     
     if( IsStashPanelVisible ){
         if( slot >= IS_Inventory ){
-            if( !IsItemAllowedForStash(&item) ){
+            if( isVisualStashSlot && StashPanel_IsLockedSlot( slot ) ){ // (thmod) shared stash
+                Tooltip_AddLine(L("Locked: item incompatible with current character"), C_2_Red);
+            }else if( !IsItemAllowedForStash(&item) ){
                 Tooltip_AddLine(L("Cannot be stashed"), C_2_Red);
             }else{
                 if (IsController() && !XinputNotInUse(true)) {

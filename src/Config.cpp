@@ -215,6 +215,7 @@ bool TransmuteKeepItems = false;
 bool TransmuteAllowMultiple = false;
 bool TransmuteShowRecipeList = true;
 bool DuplicateSounds = true;
+bool SharedStash = false; // (thmod)
 bool LimitCpuCore = false;
 bool ClassicInMainMenu = true;
 bool OutbreakInMainMenu = true;
@@ -407,6 +408,7 @@ ConfigLine ConfigStructure[] = {
 	{ cfgString, MO_BOOL, "TransmuteAllowMultiple", 0, &cfg<TransmuteAllowMultiple>, OFF },
 	{ cfgString, MO_BOOL, "TransmuteShowRecipeList", 0, &cfg<TransmuteShowRecipeList>, OFF },
 	{ cfgString, MO_BOOL, "DuplicateSounds", 0, &cfg<DuplicateSounds>, ON },
+	{ cfgString, MO_BOOL, "SharedStash", "Shared stash for single player heroes of the Easy and Normal game modes (Gillian: Open safe deposit box)", &cfg<SharedStash>, OFF }, // (thmod)
 	{ cfgString, MO_BOOL, "LimitCpuCore", 0, &cfg<LimitCpuCore>, OFF },
 	{ cfgString, MO_BOOL, "ClassicInMainMenu", 0, &cfg<ClassicInMainMenu>, ON },
 	{ cfgString, MO_BOOL, "OutbreakInMainMenu", 0, &cfg<OutbreakInMainMenu>, ON },

@@ -4342,6 +4342,11 @@ int __fastcall IsoLand_CheckLButtonClick(int shiftPressed, int repeat)
 bool CursorSkillApply() // TryIconCurs
 {
 	bool applied = true;
+	// (thmod) no identify / repair / recharge in the shared stash: its items stay exactly as they were put in
+	if( is(Cur.GraphicsID, CM_2_IDENTIFY, CM_3_REPAIR, CM_4_STAFF_RECHARGE) && StashPanel_IsSharedStashSlot(Cur.InventoryCellID) ){
+		SetCursorGraphics(CM_1_NORMAL_HAND);
+		return applied;
+	}
 	switch (Cur.GraphicsID ){
 		case CM_8_RISING:
 			//(rt) if(ObjectUnderCursor.playerIndex != -1){ // th1 has no such check
