@@ -150,7 +150,7 @@ void BackupSaveIfNeed( int slotIndex )
 void UpdatePlayerFile()
 {
 	if( EnforceNoSave ){ return; }
-	SharedStash_Save(); // (thmod) before the hero: a failure in between can't lose an item
+	SharedStash_Save(); // (thmod) shared stash goes together with the hero (not atomic, see SharedStash_Save)
 	int slotIndex = GetSlotByHeroName(Players[CurrentPlayerIndex].playerName);
 	BackupSaveIfNeed(slotIndex);
 	LastPlayerInfo heroData;

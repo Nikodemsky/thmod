@@ -374,8 +374,9 @@ void SharedStash_Load()
 }
 
 //----- (thmod) -----------------------------------------------------------
-// Called from UpdatePlayerFile before the hero archive is written: if anything goes wrong between
-// the two writes, an item can end up in both places, but never in none
+// Called from UpdatePlayerFile before the hero archive is written. The two writes are not atomic:
+// if the hero is not written after this (crash, failed archive write), an item moved into the shared
+// stash exists twice and an item taken out of it is lost
 void SharedStash_Save()
 {
 	if( ! SharedStashActive() ) return;
