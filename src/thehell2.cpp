@@ -225,6 +225,11 @@ void Summon_Orzog(int row, int col)
 	CastMissile(0, 0, row, col, 0, MI_62_RISING_2, CT_0_PLAYER, 0, 0, 0, 0);
 }
 
+// (thmod) THE DEN timeline, in seconds since entering the Den (Q_24_THE_RAMPAGING_DEMON.timer).
+// DrawInfoLeft shows a countdown to each of these two moments.
+constexpr int TheDenOpenTime     = 4 * 60 + 21; // the whole Den opens, the second wave starts
+constexpr int TheDenCerberusTime = 5 * 60 + 8;  // Cerberus appears
+
 //----- (th2) -------------------------------------------------------------
 void TheDenScript()
 {
@@ -283,7 +288,7 @@ void TheDenScript()
                     ++theRampagingDemonQuest.status2;
                 }
             }else if( theRampagingDemonQuest.status2 == 2 ){
-                if( theRampagingDemonQuest.timer == make_time(4, 21) ){
+                if( theRampagingDemonQuest.timer == TheDenOpenTime /* (thmod) was make_time(4, 21) */ ){
                     ++theRampagingDemonQuest.status2;
                     TheDenMonsterSpawnTimer = 0;
                     // Open dun
@@ -291,7 +296,7 @@ void TheDenScript()
 					PlayGlobalSound(S_1278_THE_DEN_OPEN_DUN);
                 }
             }else if( theRampagingDemonQuest.status2 == 3 ){
-                if( theRampagingDemonQuest.timer == make_time(5, 8) ){
+                if( theRampagingDemonQuest.timer == TheDenCerberusTime /* (thmod) was make_time(5, 8) */ ){
                     ++theRampagingDemonQuest.status2;
                     // Summon Cerber
                     // We can't be sure if cell is free. Need to find nearest free cell before
@@ -2780,6 +2785,17 @@ void DrawInfoLeft()
     Player& player = Players[CurrentPlayerIndex];
 	if( Dungeon != DUN_0_TOWN && player.notHittableFramesAfterTransition > 0 ){
 		draw( C_4_Orange, L("Invulnerability period: %d sec"), player.notHittableFramesAfterTransition / ENGINE_FPS + 1 ); // (th4) localize
+	}
+	// (thmod) THE DEN: countdown to the opening of the whole Den, then to Cerberus (TheDenScript timeline).
+	// status2: 0..2 = before the opening, 3 = opened / waiting for Cerberus, 4 = Cerberus is here, 5 = he is dead
+	if( Dungeon == DUN_45_THE_DEN ){
+		const Quest& denQuest = Quests[Q_24_THE_RAMPAGING_DEMON];
+		if( denQuest.status == QS_2_IN_PROGRESS && denQuest.status2 < 4 ){
+			const bool opened = denQuest.status2 >= 3;
+			int secondsLeft = (opened ? TheDenCerberusTime : TheDenOpenTime) - denQuest.timer;
+			LimitToMin(secondsLeft, 0);
+			draw( opened ? C_2_Red : C_4_Orange, opened ? L("Cerberus arrives in %i:%02i") : L("The Den opens in %i:%02i"), secondsLeft / 60, secondsLeft % 60 );
+		}
 	}
 	if( ShowSystemTime ){
 		time_t timer;
