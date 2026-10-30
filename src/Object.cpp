@@ -40,8 +40,101 @@ __forceinline void LoadOneObjectSprite(int floorItemSpriteIndex)
 // ║                           end of inline	                                 ║
 // ╚═════════════════════════════════════════════════════════════════════════════╝
 
+//----- (thmod) ISLAND OF THE SUNLESS SEA: PEDESTAL ------------------------------------------------
+// A second way to open the portal to the island: next to the angel statues stands a Pedestal of Blood
+// ("Pay with blood and sweat"). Using it costs 99% of the CURRENT life (never below 1 point -- it must not
+// kill), 99% of the current mana and 5% of the experience gained within the current level, then opens the
+// portal exactly like the right angel sequence (Quests.cpp sees status2/status3 and casts the red portal).
+// Only the sprite of the Valor quest's pedestal is borrowed; the Valor code paths are left untouched --
+// the Valor pedestal lives on a catacomb level, this one on the island's cave level.
+static bool IsIslandPedestal( const Object& object )
+{
+	return object.BaseObjectIndex == BO_73_PEDESTAL_OF_BLOOD && IsQuestOnLevel(Q_20_SUNLESS_SEA);
+}
+
+static void SetIslandPedestalPaid( Object& object )
+{
+	object.FrameIndex += 3 - object.maybeFrameIndex; // the pedestal's last frame: filled with blood
+	object.maybeFrameIndex = 3;
+	object.selectable = 0;
+}
+
+// charge: false when the use is only replayed (multiplayer level sync) -- nobody pays again
+static void ActivateIslandPedestal( int playerIndex, int objectIndex, bool charge )
+{
+	Object& object = Objects[objectIndex];
+	Quest& islandQuest = Quests[Q_20_SUNLESS_SEA];
+	if( ! object.selectable ) return;
+	if( islandQuest.status2 >= 1 ){ // the angels already opened the portal
+		SetIslandPedestalPaid(object);
+		return;
+	}
+	if( charge && playerIndex == CurrentPlayerIndex ){
+		Player& player = Players[playerIndex];
+		int lifeCost = player.CurLife * 99 / 100; // life and mana are kept in 1/64 points
+		if( player.CurLife - lifeCost < 64 ) lifeCost = player.CurLife - 64; // at least 1 life point stays
+		if( lifeCost > 0 ){
+			player.CurLife  -= lifeCost;
+			player.BaseLife -= lifeCost;
+		}
+		const int manaCost = player.CurMana * 99 / 100;
+		if( manaCost > 0 ){
+			player.CurMana  -= manaCost;
+			player.BaseMana -= manaCost;
+		}
+		if( player.CharLevel < PlayerMaxLevel() ){ // 5% of the progress toward the next level, never a level down
+			const i64 levelStart = LevelUp(player.CharLevel - 1);
+			if( player.Xp > levelStart ) player.Xp -= (player.Xp - levelStart) * 5 / 100;
+		}
+	}
+	SetIslandPedestalPaid(object);
+	islandQuest.status2 = 1;
+	islandQuest.status3 = 1;
+	PlayLocalSound(S_97_BLODSTAR, object.Row, object.Col);
+}
+
+// placed right after the angels: on an open floor cell (all 8 neighbours walkable too, so the pedestal
+// cannot close a passage) as close as possible to the statues, away from the spot where the portal opens.
+// Deterministic, no RNG -- every player in a multiplayer game gets it on the same cell.
+static void AddIslandPedestal()
+{
+	int sumRow = 0, sumCol = 0, angels = 0;
+	for( int i = 0; i < ObjectsCount; ++i ){
+		const Object& o = Objects[ObjectActive[i]];
+		if( o.BaseObjectIndex == BO_24_ANGEL ){ sumRow += o.Row; sumCol += o.Col; ++angels; }
+	}
+	if( ! angels ) return;
+	const int centerRow = sumRow / angels, centerCol = sumCol / angels;
+	const int portalRow = Convert40to112(CurPattern.row) + 5, portalCol = Convert40to112(CurPattern.col) + 5; // see Quests.cpp
+	auto freeFloor = []( int r, int c ){
+		return To112(r, c) && ! TileBlockWalking[FineMap[r][c]] && ! ObjectsMap[r][c] && ! MonsterMap[r][c];
+	};
+	for( int ring = 2; ring <= 6; ++ring ){
+		for( int dr = -ring; dr <= ring; ++dr ){
+			for( int dc = -ring; dc <= ring; ++dc ){
+				if( abs(dr) != ring && abs(dc) != ring ) continue; // inner cells belong to a closer ring
+				const int r = centerRow + dr, c = centerCol + dc;
+				if( abs(r - portalRow) <= 2 && abs(c - portalCol) <= 2 ) continue;
+				bool open = true;
+				for( int nr = -1; nr <= 1 && open; ++nr ){
+					for( int nc = -1; nc <= 1; ++nc ){
+						if( ! freeFloor(r + nr, c + nc) ){ open = false; break; }
+					}
+				}
+				if( ! open ) continue;
+				AddObject(BO_73_PEDESTAL_OF_BLOOD, r, c);
+				if( Quests[Q_20_SUNLESS_SEA].status2 >= 1 ){
+					SetIslandPedestalPaid(Objects[ObjectActive[ObjectsCount - 1]]);
+				}
+				return;
+			}
+		}
+	}
+}
+
 //----- (0044BD31) --------------------------------------------------------
 void LoadObjectSprites()
+
 {
 	int dungeonLevel = Dungeon->level; // TODO: change to check Dungeon->graphType
 	if( dungeonLevel >= 21 && dungeonLevel <= 24 ){// (rt) the crypt pretends to be the church
@@ -377,6 +470,7 @@ void __fastcall InitObjects()
 			LoadMapObjects( island, 2 * CurPattern.row + 1, 2 * CurPattern.col + 1 );
 			FreeMem( island );
 			SetupAngels();
+			AddIslandPedestal(); // (thmod) second way to open the portal
 		}
 		
 		//if( QuestPattern* qp = GetQuestPattern(Q_36_CLEAR_WATER) ){
@@ -3619,7 +3713,10 @@ void __fastcall OperateObject(int playerIndex, int objectIndex, int telekines)
 	case BO_81_MURKY_POOL:
 	case BO_82_FOUNTAIN_OF_TEARS:		ActivateFountain(playerIndex, objectIndex);		break;
 	case BO_86_QUEST_BOOK:		ActivateQuestBook2(playerIndex, objectIndex);		break;
-	case BO_73_PEDESTAL_OF_BLOOD:		ActivatePedestalOfBlood(playerIndex, objectIndex);		break;
+	case BO_73_PEDESTAL_OF_BLOOD:
+		if( IsIslandPedestal(Objects[objectIndex]) ) ActivateIslandPedestal(playerIndex, objectIndex, true); // (thmod)
+		else ActivatePedestalOfBlood(playerIndex, objectIndex);
+		break;
 	case BO_90_WEAPON_RACK:
 	case BO_92_WEAPON_RACK_2:		ActivateWeaponRack(playerIndex, objectIndex, isCurrentPlayer);		break;
 	case BO_94_MUSHROOM_PATCH:		ActivateMushroomPatch(playerIndex, objectIndex);		break;
@@ -6193,7 +6290,10 @@ void __fastcall SyncOpObject( int playerIndex, int netCommand, int objectIndex )
 	case BO_94_MUSHROOM_PATCH:						ActivateMushroomPatch(playerIndex, objectIndex);						return;
 	case BO_96_SLAIN_HERO:							ActivateSlainHero_TH(playerIndex, objectIndex);							return;
 	case BO_97_OGDEN_CHEST:							ActivateLargeOgdenQuestChest(playerIndex, objectIndex);					return;
-	case BO_73_PEDESTAL_OF_BLOOD:					ActivatePedestalOfBlood(playerIndex, objectIndex);						return;
+	case BO_73_PEDESTAL_OF_BLOOD:
+		if( IsIslandPedestal(Objects[objectIndex]) ) ActivateIslandPedestal(playerIndex, objectIndex, false); // (thmod) replay, nobody pays
+		else ActivatePedestalOfBlood(playerIndex, objectIndex);
+		return;
 	case BO_77_ARMOR:
 	case BO_89_ARMOR_2:								ActivateArmorRack(playerIndex, objectIndex, 0);							return;
 	case BO_62_BOOKCASE:
@@ -6510,7 +6610,7 @@ void __fastcall SetDunTileForObject(int objectIndex)
 	case BO_71_BOOK_OF_THE_BLIND:															
 	case BO_88_STEEL_TOME:																	
 	case BO_41_MYTHICAL_BOOK:						WithQuestBooks			(objectIndex);	break;
-	case BO_73_PEDESTAL_OF_BLOOD:					WithPedestalOfBlood		(objectIndex);	break;
+	case BO_73_PEDESTAL_OF_BLOOD:					if( ! IsIslandPedestal(object) ) WithPedestalOfBlood(objectIndex);	break; // (thmod) the island pedestal keeps its saved state
 	}
 }
 
@@ -6768,7 +6868,7 @@ void __fastcall IdentifyObjectOnMapInFocus(int objectIndex)
 	case BO_80_CAULDRON:			strcpy(InfoPanelHeader, L("Cauldron"));			break;
 	case BO_81_MURKY_POOL:			strcpy(InfoPanelHeader, L("Murky Pool"));			break;
 	case BO_82_FOUNTAIN_OF_TEARS:	strcpy(InfoPanelHeader, L("Fountain of Tears"));	break;
-	case BO_73_PEDESTAL_OF_BLOOD:	strcpy(InfoPanelHeader, L("Pedestal of Blood"));	break;
+	case BO_73_PEDESTAL_OF_BLOOD:	strcpy(InfoPanelHeader, IsQuestOnLevel(Q_20_SUNLESS_SEA) ? L("Pay with blood and sweat") : L("Pedestal of Blood"));	break; // (thmod)
 	case BO_86_QUEST_BOOK:			strcpy(InfoPanelHeader, L(BookNamePtrTable[objectOnMap.BookNameIndex]));			break; // (th4) book titles now localize like every neighbour
 	case BO_90_WEAPON_RACK:
 	case BO_92_WEAPON_RACK_2:		strcpy(InfoPanelHeader, L("Weapon Rack"));			break;
