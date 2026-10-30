@@ -94,7 +94,7 @@ static void ActivateIslandPedestal( int playerIndex, int objectIndex, bool charg
 }
 
 // placed right after the angels: on an open floor cell (all 8 neighbours walkable too, so the pedestal
-// cannot close a passage) as close as possible to the statues, away from the spot where the portal opens.
+// cannot close a passage) in front of the statues, away from them and from the spot where the portal opens.
 // Deterministic, no RNG -- every player in a multiplayer game gets it on the same cell.
 static void AddIslandPedestal()
 {
@@ -104,17 +104,28 @@ static void AddIslandPedestal()
 		if( o.BaseObjectIndex == BO_24_ANGEL ){ sumRow += o.Row; sumCol += o.Col; ++angels; }
 	}
 	if( ! angels ) return;
-	const int centerRow = sumRow / angels, centerCol = sumCol / angels;
+	// preferred spot: 5 cells further in both row and col from the middle of the statues -- straight down on
+	// the screen, in front of them -- so the pedestal can not be mistaken for (or clicked instead of) a statue;
+	// if that cell is not open, the nearest open one around it is taken
+	const int spotRow = sumRow / angels + 5, spotCol = sumCol / angels + 5;
 	const int portalRow = Convert40to112(CurPattern.row) + 5, portalCol = Convert40to112(CurPattern.col) + 5; // see Quests.cpp
 	auto freeFloor = []( int r, int c ){
 		return To112(r, c) && ! TileBlockWalking[FineMap[r][c]] && ! ObjectsMap[r][c] && ! MonsterMap[r][c];
 	};
-	for( int ring = 2; ring <= 6; ++ring ){
+	auto nearStatue = []( int r, int c ){ // closer than 3 cells to any angel statue
+		for( int i = 0; i < ObjectsCount; ++i ){
+			const Object& o = Objects[ObjectActive[i]];
+			if( o.BaseObjectIndex == BO_24_ANGEL && abs(o.Row - r) < 3 && abs(o.Col - c) < 3 ) return true;
+		}
+		return false;
+	};
+	for( int ring = 0; ring <= 6; ++ring ){
 		for( int dr = -ring; dr <= ring; ++dr ){
 			for( int dc = -ring; dc <= ring; ++dc ){
 				if( abs(dr) != ring && abs(dc) != ring ) continue; // inner cells belong to a closer ring
-				const int r = centerRow + dr, c = centerCol + dc;
+				const int r = spotRow + dr, c = spotCol + dc;
 				if( abs(r - portalRow) <= 2 && abs(c - portalCol) <= 2 ) continue;
+				if( nearStatue(r, c) ) continue;
 				bool open = true;
 				for( int nr = -1; nr <= 1 && open; ++nr ){
 					for( int nc = -1; nc <= 1; ++nc ){
