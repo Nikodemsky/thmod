@@ -17,6 +17,7 @@
 //
 // Every option is tri-state in config.ini: auto (default) / on / off.
 // "auto" means: on under Wine/Proton, off on Windows -- so Windows behaviour is unchanged.
+// Exception: MenuClipCursor, whose auto means on everywhere (the original behaviour).
 
 extern bool IsWine;               // ntdll exports wine_get_version
 extern const char* WineVersion;   // "" on Windows
@@ -24,9 +25,10 @@ extern const char* WineVersion;   // "" on Windows
 // raw config values (-1 auto, 0 off, 1 on), parsed in Config.cpp GetUserParameters()
 extern int MenuIdleSleep;          // Sleep(1) in Storm's menu loop when the queue is empty
 extern int MenuTimerGuard;         // fire Storm's timers even when the queue never empties
-extern int MenuClipCursor;         // hold the pointer inside the 640x480 dialog space
+extern int MenuClipCursor;         // hold the pointer inside the 640x480 dialog space (auto = on everywhere)
 extern int MenuHideDialogWindows;  // make Storm's popup dialog windows (near) invisible
 extern int MenuForceRepaint;       // make Storm repaint every invalidated dialog area (animations)
+extern int MenuKeepFocus;          // give the foreground back to the menu dialog after a stray click
 extern bool MenuDiag;              // write TH4_menu_diag.log
 
 int  ParseAutoOnOff( const char* v ); // "" / "auto" -> -1, "off" / "0" -> 0, anything else -> 1
