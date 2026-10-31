@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "LinuxCompat.h" // (fixes) Wine / Proton meta menu compatibility
 
 // (rt) error handling 
 enum ERROR_CODE: int {
@@ -95,6 +96,10 @@ void PatchStormWin()
 		*(uchar*)( 0x150176BC + StormReloc ) = 0x80;
 		*(uchar*)( 0x150176C5 + StormReloc ) = 0x80;
 	}
+
+	// (fixes) Wine / Proton: detect it, resolve the menu options, hook Storm's message loop
+	LinuxCompat_Init();
+	LinuxCompat_PatchStorm();
 }
 
 uint StormReloc = 0;
@@ -418,6 +423,7 @@ HWND _stdcall CreateWindowEx_storm( DWORD dwExStyle, LPCSTR lpClassName, LPCSTR 
 	
 	// (rt) make the increments here and in MoveWindow (and remove the resizing there)
 	HWND dlgHwnd = CreateWindowExA( dwExStyle, lpClassName, lpWindowName, dwStyle, X + p.x, Y + p.y, nWidth, nHeight /*-2*/, hWndParent, hMenu, hInstance, lpParam );
+	LinuxCompat_OnStormWindowCreated( dlgHwnd, dwExStyle, dwStyle, X + p.x, Y + p.y, nWidth, nHeight ); // (fixes) hide the popup under Wine, log
 	#ifdef META_CHILD
 	if( MainMainMenu )
 	#endif

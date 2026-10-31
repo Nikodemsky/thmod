@@ -252,6 +252,7 @@
     <ClCompile Include="src\structs_sounds.cpp" />
     <ClCompile Include="src\structs_speech.cpp" />
     <ClCompile Include="src\TH1dll.cpp" />
+    <ClCompile Include="src\LinuxCompat.cpp" />
     <ClCompile Include="src\th2data.cpp" />
     <ClCompile Include="src\th2_proposals.cpp" />
     <ClCompile Include="src\thehell2.cpp" />
@@ -310,6 +311,7 @@
     <ClInclude Include="src\BitsBytes.h" />
     <ClInclude Include="src\AnimOrbs.h" />
     <ClInclude Include="src\MenuPortrait.h" />
+    <ClInclude Include="src\LinuxCompat.h" />
     <ClInclude Include="src\ItemOverlay.h" />
     <ClInclude Include="src\stb_image.h" />
     <ClInclude Include="src\codec.h" />

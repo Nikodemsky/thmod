@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "LinuxCompat.h" // (fixes) Wine / Proton meta menu options
 
 struct GraphicsMode
 {
@@ -411,6 +412,13 @@ ConfigLine ConfigStructure[] = {
 	{ cfgString, MO_BOOL, "ColiseumSaveFolder", 0, &cfg<ColiseumSaveFolder>, ON },
 	{ cfgString, MO_BOOL, "SelectGameModeLater", 0, &cfg<SelectGameModeLater>, ON },
 
+	// (fixes) Wine / Proton meta menu compatibility, LinuxCompat.cpp. auto (default) = on under Wine, off on Windows
+	{ cfgString, 0, "MenuIdleSleep", 0, &cfg<MenuIdleSleep> },
+	{ cfgString, 0, "MenuTimerGuard", 0, &cfg<MenuTimerGuard> },
+	{ cfgString, 0, "MenuClipCursor", 0, &cfg<MenuClipCursor> },
+	{ cfgString, 0, "MenuHideDialogWindows", 0, &cfg<MenuHideDialogWindows> },
+	{ cfgString, 0, "MenuDiag", 0, &cfg<MenuDiag>, OFF },
+
 	{ cfgEnd }
 };
 
@@ -434,6 +442,11 @@ void GetUserParameters()
 	ChangeScreenRes();
 	ExternalStorm = _stricmp(cfg<ExternalStorm>, "internal") != 0; // default external
 	OriginalMenu = _stricmp(cfg<OriginalMenu>, "new") != 0; // default original
+	// (fixes) Wine / Proton meta menu options: auto / on / off (LinuxCompat.cpp)
+	MenuIdleSleep = ParseAutoOnOff( cfg<MenuIdleSleep> );
+	MenuTimerGuard = ParseAutoOnOff( cfg<MenuTimerGuard> );
+	MenuClipCursor = ParseAutoOnOff( cfg<MenuClipCursor> );
+	MenuHideDialogWindows = ParseAutoOnOff( cfg<MenuHideDialogWindows> );
 	IsNotMapOpen = _stricmp(cfg<IsNotMapOpen>, "open") != 0; // default map close
 	DrawMode = !(_stricmp( cfg<DrawMode>, "surface" ) == 0); // default on
 	FilteringMode = _stricmp( cfg<FilteringMode>, "off" ) == 0 ? D3DTEXF_NONE : D3DTEXF_LINEAR; // default on

@@ -5,6 +5,7 @@
 #include "AnimOrbs.h"
 #include "MenuPortrait.h"
 #include "ItemOverlay.h"
+#include "LinuxCompat.h" // (fixes) menu diagnostics
 #include <intrin.h> // (th4) diagnostics: _ReturnAddress() for the SwitchFullscreen call-site log
 
 LPDIRECT3DDEVICE9 D3dDevice = 0; // Our rendering device
@@ -6127,6 +6128,7 @@ static bool D3dLostDeviceResetAllowed()
 //----- (th2) -------------------------------------------------------------
 LPDIRECTDRAWSURFACE __fastcall ConvertPaletteSurfaceToTrueColor(uchar* src)
 {
+	MenuDiagDrawScope menuDiagScope; // (fixes) times this callback (incl. Present) in TH4_menu_diag.log; no-op unless MenuDiag
 	// (th4) 2026-09-10 reentrancy guard (root fix for the MP "New Game" d3d9
 	// crash): this SDraw callback is invoked by Storm's dialogs from nested
 	// message pumps. If such a message is dispatched while D3dReset() is inside
