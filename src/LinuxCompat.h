@@ -29,6 +29,7 @@ extern int MenuClipCursor;         // hold the pointer inside the 640x480 dialog
 extern int MenuHideDialogWindows;  // make Storm's popup dialog windows (near) invisible
 extern int MenuForceRepaint;       // make Storm repaint every invalidated dialog area (animations)
 extern int MenuKeepFocus;          // give the foreground back to the menu dialog after a stray click
+extern int MenuKeepOnTop;          // keep the menu dialogs above the game window and in their place
 extern bool MenuDiag;              // write TH4_menu_diag.log
 
 int  ParseAutoOnOff( const char* v ); // "" / "auto" -> -1, "off" / "0" -> 0, anything else -> 1
@@ -38,6 +39,7 @@ void LinuxCompat_PatchStorm();    // hook strm2.dll's PeekMessageA / DispatchMes
 
 bool LinuxCompat_MenuClipAllowed();
 void LinuxCompat_OnStormWindowCreated( HWND hwnd, DWORD exStyle, DWORD style, int x, int y, int w, int h );
+void LinuxCompat_OnMainWindowShown( HWND hwnd ); // paints the game window black under Wine (no white flash)
 
 // diagnostics hooks (no-ops unless MenuDiag is on)
 void MenuDiag_OnClip( const RECT& wanted );

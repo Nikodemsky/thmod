@@ -32,6 +32,7 @@ int MenuClipCursor = -1;
 int MenuHideDialogWindows = -1;
 int MenuForceRepaint = -1;
 int MenuKeepFocus = -1;
+int MenuKeepOnTop = -1;
 bool MenuDiag = false;
 
 // effective switches, resolved from the raw values in LinuxCompat_Init()
@@ -41,6 +42,12 @@ static bool UseMenuClip = true;
 static bool UseHideDialogs = false;
 static bool UseForceRepaint = false;
 static bool UseKeepFocus = false;
+static bool UseKeepOnTop = false;
+
+// Every top-level window Storm creates through CreateWindowEx_storm, with the place it was put
+// relative to the game window's client area (see KeepDialogsInPlace).
+struct TrackedDialog { HWND hwnd; POINT rel; };
+static TrackedDialog Tracked[ 32 ];
 
 // Storm dialogs created WS_EX_TRANSPARENT (every nested full-screen dialog: hero list, class,
 // subclass, traits, name entry ...). See LinuxCompat_OnStormWindowCreated: the style is taken
@@ -91,7 +98,7 @@ static struct DiagCounters {
 	int draws; long long drawTotal, drawMax;
 	int clips, clipMismatch;
 	int sdlgPaint, forced;
-	int refocus;
+	int refocus, raised, moved;
 } D;
 static DWORD DiagLastFlush = 0;
 static DWORD DiagStart = 0;
@@ -158,12 +165,12 @@ static void DiagTick()
 		strcat_s( top, one );
 	}
 	DiagPrint( "[%7.1fs] %s peek=%d got=%d idle=%d maxIdleGap=%ums timer=%d paint=%d mouse=%d key=%d other=%d guard=%d |%s"
-		" | disp max=%.1fms(%04X) sum=%.0fms | draw=%d avg=%.1fms max=%.1fms sum=%.0fms | sdlgpaint=%d forced=%d refocus=%d | clip=%d lost=%d | fg=%s focus=%s | ptr=%d,%d over=%s\n",
+		" | disp max=%.1fms(%04X) sum=%.0fms | draw=%d avg=%.1fms max=%.1fms sum=%.0fms | sdlgpaint=%d forced=%d refocus=%d raised=%d moved=%d | clip=%d lost=%d | fg=%s focus=%s | ptr=%d,%d over=%s\n",
 		( now - DiagStart ) / 1000.0, MainMainMenu ? "main" : "menu",
 		D.peek, D.got, D.idle, D.maxIdleGap, D.timer, D.paint, D.mouse, D.key, D.other, D.guard, top,
 		QpcMs( D.dispMax ), D.dispMaxMsg, QpcMs( D.dispTotal ),
 		D.draws, D.draws ? QpcMs( D.drawTotal ) / D.draws : 0.0, QpcMs( D.drawMax ), QpcMs( D.drawTotal ),
-		D.sdlgPaint, D.forced, D.refocus,
+		D.sdlgPaint, D.forced, D.refocus, D.raised, D.moved,
 		D.clips, D.clipMismatch,
 		WhichWindow( GetForegroundWindow() ), WhichWindow( GetFocus() ),
 		pt.x, pt.y, WhichWindow( WindowFromPoint( pt ) ) );
@@ -233,6 +240,61 @@ static void KeepMenuFocus( DWORD now )
 }
 
 //------------------------------------------------------------------------------------------
+// Keep the menu dialogs above the game window, where they were put.
+// With DDraw off (D3D9 through DXVK) the first main menu came up black under Proton: the
+// dialog existed and had the keyboard (Enter worked), but the game window lay above it
+// (TH4_menu_diag.log: draw=0 while sdlgpaint=36..58/s, the pointer in the dialog area was
+// "over=main"). Storm clips its blits against every visible window above the dialog
+// (strm2.dll 0x15005A30 / 0x150061B0), so it drew nothing, and the clicks went to the
+// disabled game window. Windows keeps owned popups above their owner; Wine lost that here
+// while the D3D9 window was being set up. Every new dialog afterwards was fine.
+static bool IsAbove( HWND upper, HWND w )
+{
+	for( int i = 0; i < 512 && ( w = GetWindow( w, GW_HWNDPREV ) ) != 0; ++i ){
+		if( w == upper ) return true;
+	}
+	return false;
+}
+
+static void KeepDialogsInPlace( DWORD now )
+{
+	static DWORD lastCheck = 0;
+	if( now - lastCheck < 100 || !ghMainWnd ) return;
+	lastCheck = now;
+	HWND live[ 32 ];
+	int n = 0;
+	POINT origin = { 0, 0 };
+	ClientToScreen( ghMainWnd, &origin );
+	bool covered = false;
+	for( TrackedDialog& t: Tracked ){
+		if( !t.hwnd ) continue;
+		if( !IsWindow( t.hwnd ) ){ t.hwnd = 0; continue; }
+		if( !IsWindowVisible( t.hwnd ) ) continue;
+		live[ n++ ] = t.hwnd;
+		// position: a window manager may place a new window on its own
+		RECT r;
+		GetWindowRect( t.hwnd, &r );
+		const int x = origin.x + t.rel.x, y = origin.y + t.rel.y;
+		if( r.left != x || r.top != y ){
+			DiagPrint( "storm window %p was at %d,%d instead of %d,%d -> moved back\n", t.hwnd, r.left, r.top, x, y );
+			SetWindowPos( t.hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE );
+			RedrawWindow( t.hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN );
+			if( DiagLog ) ++D.moved;
+		}
+		if( IsAbove( ghMainWnd, t.hwnd ) ) covered = true;
+	}
+	if( !covered ) return;
+	// order the dialogs bottom to top, then raise them in that order so they keep their own stacking
+	for( int i = 0; i < n; ++i ) for( int j = i + 1; j < n; ++j ){
+		if( IsAbove( live[ i ], live[ j ] ) ){ HWND t = live[ i ]; live[ i ] = live[ j ]; live[ j ] = t; }
+	}
+	DiagPrint( "game window above %d storm window(s) -> raised them\n", n );
+	for( int i = 0; i < n; ++i ) SetWindowPos( live[ i ], HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE );
+	for( int i = 0; i < n; ++i ) RedrawWindow( live[ i ], nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN );
+	if( DiagLog ) ++D.raised;
+}
+
+//------------------------------------------------------------------------------------------
 // strm2.dll import hooks
 static BOOL __stdcall PeekMessage_storm( LPMSG msg, HWND hwnd, UINT filterMin, UINT filterMax, UINT removeMsg )
 {
@@ -261,6 +323,7 @@ static BOOL __stdcall PeekMessage_storm( LPMSG msg, HWND hwnd, UINT filterMin, U
 		// so the menu keeps one core and wineserver busy doing nothing.
 		if( UseIdleSleep && !gbRunGame ) Sleep( 1 );
 	}
+	if( UseKeepOnTop && !gbRunGame ) KeepDialogsInPlace( now );
 	if( UseKeepFocus && !gbRunGame ) KeepMenuFocus( now );
 	DiagTick();
 	return got;
@@ -339,6 +402,7 @@ void LinuxCompat_Init()
 	UseHideDialogs = Resolve( MenuHideDialogWindows );
 	UseForceRepaint = Resolve( MenuForceRepaint );
 	UseKeepFocus = Resolve( MenuKeepFocus );
+	UseKeepOnTop = Resolve( MenuKeepOnTop );
 
 	if( MenuDiag && !DiagLog ){
 		QueryPerformanceFrequency( &QpcFreq );
@@ -349,8 +413,8 @@ void LinuxCompat_Init()
 		GetLocalTime( &st );
 		DiagPrint( "TH4 menu diagnostics, %04d-%02d-%02d %02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond );
 		DiagPrint( "wine=%d version=%s\n", (int) IsWine, IsWine ? WineVersion : "-" );
-		DiagPrint( "options (raw -1 auto/0 off/1 on -> effective): MenuIdleSleep %d->%d MenuTimerGuard %d->%d MenuClipCursor %d->%d MenuHideDialogWindows %d->%d MenuForceRepaint %d->%d MenuKeepFocus %d->%d\n",
-			MenuIdleSleep, UseIdleSleep, MenuTimerGuard, UseTimerGuard, MenuClipCursor, UseMenuClip, MenuHideDialogWindows, UseHideDialogs, MenuForceRepaint, UseForceRepaint, MenuKeepFocus, UseKeepFocus );
+		DiagPrint( "options (raw -1 auto/0 off/1 on -> effective): MenuIdleSleep %d->%d MenuTimerGuard %d->%d MenuClipCursor %d->%d MenuHideDialogWindows %d->%d MenuForceRepaint %d->%d MenuKeepFocus %d->%d MenuKeepOnTop %d->%d\n",
+			MenuIdleSleep, UseIdleSleep, MenuTimerGuard, UseTimerGuard, MenuClipCursor, UseMenuClip, MenuHideDialogWindows, UseHideDialogs, MenuForceRepaint, UseForceRepaint, MenuKeepFocus, UseKeepFocus, MenuKeepOnTop, UseKeepOnTop );
 		DiagPrint( "config: DDraw=%d fullscreen=%d BigWin=%d screen=%dx%d desktop=%dx%d\n",
 			(int) DDraw, (int) IsFullScreen, (int) BigWin, ScreenWidth, ScreenHeight, GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) );
 		DiagPrint( "columns: peek = PeekMessage calls by Storm, got = messages removed, idle = empty peeks,"
@@ -358,6 +422,7 @@ void LinuxCompat_Init()
 			" disp = DispatchMessage time, draw = Storm surface -> screen (ConvertPaletteSurfaceToTrueColor incl. Present),"
 			" sdlgpaint = SDlgBeginPaint calls / forced = of those, fErase was FALSE and got forced (MenuForceRepaint),"
 			" refocus = foreground handed back to the menu dialog (MenuKeepFocus),"
+			" raised/moved = menu dialogs put back above the game window / at their place (MenuKeepOnTop),"
 			" clip = ClipCursor calls / lost = the OS did not keep the clip, fg/focus = which window has them,"
 			" ptr/over = real pointer position and the window under it\n" );
 	}
@@ -368,7 +433,7 @@ void LinuxCompat_PatchStorm()
 	if( !Storm2Base ) return;
 	StormCheckTimers = (SDlgCheckTimers_t) GetProcAddress( Storm2Base, MAKEINTRESOURCEA( 203 ) );
 	// Hook only when something needs it, so Windows without the diagnostics stays untouched.
-	if( UseIdleSleep || UseTimerGuard || UseKeepFocus || DiagLog ){
+	if( UseIdleSleep || UseTimerGuard || UseKeepFocus || UseKeepOnTop || DiagLog ){
 		HookStormImport( 0x150452EC, "PeekMessageA", (void*) PeekMessage_storm );
 		HookStormImport( 0x150452E4, "DispatchMessageA", (void*) DispatchMessage_storm );
 	}
@@ -389,6 +454,12 @@ bool LinuxCompat_MenuClipAllowed()
 void LinuxCompat_OnStormWindowCreated( HWND hwnd, DWORD exStyle, DWORD style, int x, int y, int w, int h )
 {
 	bool hidden = false, stripped = false;
+	if( hwnd && !( style & WS_CHILD ) && ghMainWnd ){
+		POINT origin = { 0, 0 };
+		ClientToScreen( ghMainWnd, &origin );
+		for( TrackedDialog& t: Tracked ) if( t.hwnd && !IsWindow( t.hwnd ) ) t.hwnd = 0;
+		for( TrackedDialog& t: Tracked ) if( !t.hwnd ){ t.hwnd = hwnd; t.rel = { x - origin.x, y - origin.y }; break; }
+	}
 	if( hwnd && UseHideDialogs && !( style & WS_CHILD ) ){
 		// Storm never paints these popups itself (it blits the dialog art into its DirectDraw
 		// surface, which TH4 shows through D3D), so under Wine they come out as a white
@@ -410,4 +481,18 @@ void LinuxCompat_OnStormWindowCreated( HWND hwnd, DWORD exStyle, DWORD style, in
 	}
 	DiagPrint( "storm window %p: ex=%08X style=%08X at %d,%d size %dx%d%s%s\n", hwnd, exStyle, style, x, y, w, h,
 		hidden ? " -> made invisible (layered alpha 1)" : "", stripped ? ", WS_EX_TRANSPARENT kept for Storm only" : "" );
+}
+
+// Under Wine a window shows white until it is painted, and the game window is not painted
+// until the first frame (TH4 swallows WM_ERASEBKGND): a white screen for a moment at start-up.
+// Called from Windows.cpp CreateMainWindow() right after ShowWindow.
+void LinuxCompat_OnMainWindowShown( HWND hwnd )
+{
+	if( !IsWine || !hwnd ) return;
+	RECT rc;
+	GetClientRect( hwnd, &rc );
+	if( HDC dc = GetDC( hwnd ) ){
+		FillRect( dc, &rc, (HBRUSH) GetStockObject( BLACK_BRUSH ) );
+		ReleaseDC( hwnd, dc );
+	}
 }
