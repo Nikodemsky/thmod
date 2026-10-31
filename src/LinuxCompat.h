@@ -26,6 +26,7 @@ extern int MenuIdleSleep;          // Sleep(1) in Storm's menu loop when the que
 extern int MenuTimerGuard;         // fire Storm's timers even when the queue never empties
 extern int MenuClipCursor;         // hold the pointer inside the 640x480 dialog space
 extern int MenuHideDialogWindows;  // make Storm's popup dialog windows (near) invisible
+extern int MenuForceRepaint;       // make Storm repaint every invalidated dialog area (animations)
 extern bool MenuDiag;              // write TH4_menu_diag.log
 
 int  ParseAutoOnOff( const char* v ); // "" / "auto" -> -1, "off" / "0" -> 0, anything else -> 1

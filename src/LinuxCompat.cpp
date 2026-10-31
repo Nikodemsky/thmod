@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "LinuxCompat.h"
+#include <intrin.h>
+#pragma intrinsic( _ReturnAddress )
 
 // (fixes) Wine / Proton compatibility for the Storm meta menu. See LinuxCompat.h.
 //
@@ -7,6 +9,11 @@
 // one shipped with TH4 0.774; the same build TH1dll.cpp PatchStormWin() already patches):
 //   0x150452EC  import slot of PeekMessageA
 //   0x150452E4  import slot of DispatchMessageA
+//   0x150452CC  import slot of BeginPaint
+//   0x15011A71  return address of the BeginPaint call inside SDlgBeginPaint (ordinal 201).
+//               SDlgBeginPaint takes the update region, calls BeginPaint with the class
+//               brush temporarily removed, and draws the dialog art ONLY if the returned
+//               PAINTSTRUCT.fErase is set (strm2.dll 0x15011A7D: test [ps+4]; je skip).
 //   ordinal 203 SDlgCheckTimers (0x1500FCB0): walks Storm's timer list, posts WM_TIMER
 //   0x1500FD40  one iteration of the dialog modal loop:
 //                 PeekMessageA(PM_REMOVE) -> IsDialogMessage / Translate / Dispatch
@@ -22,6 +29,7 @@ int MenuIdleSleep = -1;
 int MenuTimerGuard = -1;
 int MenuClipCursor = -1;
 int MenuHideDialogWindows = -1;
+int MenuForceRepaint = -1;
 bool MenuDiag = false;
 
 // effective switches, resolved from the raw values in LinuxCompat_Init()
@@ -29,6 +37,7 @@ static bool UseIdleSleep = false;
 static bool UseTimerGuard = false;
 static bool UseMenuClip = true;
 static bool UseHideDialogs = false;
+static bool UseForceRepaint = false;
 
 extern bool MainMainMenu; // MainMenu.cpp
 
@@ -61,6 +70,7 @@ static struct DiagCounters {
 	long long dispMax; UINT dispMaxMsg; long long dispTotal;
 	int draws; long long drawTotal, drawMax;
 	int clips, clipMismatch;
+	int sdlgPaint, forced;
 } D;
 static DWORD DiagLastFlush = 0;
 static DWORD DiagStart = 0;
@@ -117,6 +127,8 @@ static void DiagTick()
 	DiagLastFlush = now;
 	const DWORD gapNow = now - D.lastIdle;
 	if( gapNow > D.maxIdleGap ) D.maxIdleGap = gapNow;
+	POINT pt = { -1, -1 };
+	GetCursorPos( &pt ); // the real one, screen coordinates (Storm's import is the patched GetCursorPos_)
 	char top[ 160 ] = "";
 	for( const MsgCount& m: D.top ){
 		if( !m.count ) break;
@@ -125,13 +137,15 @@ static void DiagTick()
 		strcat_s( top, one );
 	}
 	DiagPrint( "[%7.1fs] %s peek=%d got=%d idle=%d maxIdleGap=%ums timer=%d paint=%d mouse=%d key=%d other=%d guard=%d |%s"
-		" | disp max=%.1fms(%04X) sum=%.0fms | draw=%d avg=%.1fms max=%.1fms sum=%.0fms | clip=%d lost=%d | fg=%s focus=%s\n",
+		" | disp max=%.1fms(%04X) sum=%.0fms | draw=%d avg=%.1fms max=%.1fms sum=%.0fms | sdlgpaint=%d forced=%d | clip=%d lost=%d | fg=%s focus=%s | ptr=%d,%d over=%s\n",
 		( now - DiagStart ) / 1000.0, MainMainMenu ? "main" : "menu",
 		D.peek, D.got, D.idle, D.maxIdleGap, D.timer, D.paint, D.mouse, D.key, D.other, D.guard, top,
 		QpcMs( D.dispMax ), D.dispMaxMsg, QpcMs( D.dispTotal ),
 		D.draws, D.draws ? QpcMs( D.drawTotal ) / D.draws : 0.0, QpcMs( D.drawMax ), QpcMs( D.drawTotal ),
+		D.sdlgPaint, D.forced,
 		D.clips, D.clipMismatch,
-		WhichWindow( GetForegroundWindow() ), WhichWindow( GetFocus() ) );
+		WhichWindow( GetForegroundWindow() ), WhichWindow( GetFocus() ),
+		pt.x, pt.y, WhichWindow( WindowFromPoint( pt ) ) );
 	DiagReset();
 }
 
@@ -197,6 +211,27 @@ static LRESULT __stdcall DispatchMessage_storm( const MSG* msg )
 	return r;
 }
 
+// SDlgBeginPaint draws the dialog art only when BeginPaint reports fErase. The menu animation
+// (pentagrams via AnimateSelectionPentagram, the title via AnimateDialogTitle) invalidates with
+// bErase = FALSE, so under Wine fErase comes back FALSE and Storm validates the area WITHOUT
+// drawing it: the timers run, WM_PAINT arrives ~36 times a second, nothing reaches the screen
+// (TH4_menu_diag.log: paint=36..200/s, draw=0). Only full repaints (focus changes ->
+// InvalidateRect(NULL) in Hell.cpp, "removes menu freezes") went through. The update region
+// Storm draws was taken with GetUpdateRgn before BeginPaint, so forcing fErase makes it draw
+// exactly what was invalidated.
+static HDC __stdcall BeginPaint_storm( HWND hwnd, LPPAINTSTRUCT ps )
+{
+	const HDC dc = BeginPaint( hwnd, ps );
+	if( dc && _ReturnAddress() == (void*) ( 0x15011A71 + StormReloc ) ){
+		if( DiagLog ) ++D.sdlgPaint;
+		if( UseForceRepaint && !ps->fErase ){
+			ps->fErase = TRUE;
+			if( DiagLog ) ++D.forced;
+		}
+	}
+	return dc;
+}
+
 static bool HookStormImport( uint slot, const char* name, void* hook )
 {
 	void* real = (void*) GetProcAddress( GetModuleHandleA( "user32.dll" ), name );
@@ -223,6 +258,7 @@ void LinuxCompat_Init()
 	UseTimerGuard = Resolve( MenuTimerGuard );
 	UseMenuClip = MenuClipCursor < 0 ? !IsWine : MenuClipCursor != 0;
 	UseHideDialogs = Resolve( MenuHideDialogWindows );
+	UseForceRepaint = Resolve( MenuForceRepaint );
 
 	if( MenuDiag && !DiagLog ){
 		QueryPerformanceFrequency( &QpcFreq );
@@ -233,14 +269,16 @@ void LinuxCompat_Init()
 		GetLocalTime( &st );
 		DiagPrint( "TH4 menu diagnostics, %04d-%02d-%02d %02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond );
 		DiagPrint( "wine=%d version=%s\n", (int) IsWine, IsWine ? WineVersion : "-" );
-		DiagPrint( "options (raw -1 auto/0 off/1 on -> effective): MenuIdleSleep %d->%d MenuTimerGuard %d->%d MenuClipCursor %d->%d MenuHideDialogWindows %d->%d\n",
-			MenuIdleSleep, UseIdleSleep, MenuTimerGuard, UseTimerGuard, MenuClipCursor, UseMenuClip, MenuHideDialogWindows, UseHideDialogs );
+		DiagPrint( "options (raw -1 auto/0 off/1 on -> effective): MenuIdleSleep %d->%d MenuTimerGuard %d->%d MenuClipCursor %d->%d MenuHideDialogWindows %d->%d MenuForceRepaint %d->%d\n",
+			MenuIdleSleep, UseIdleSleep, MenuTimerGuard, UseTimerGuard, MenuClipCursor, UseMenuClip, MenuHideDialogWindows, UseHideDialogs, MenuForceRepaint, UseForceRepaint );
 		DiagPrint( "config: DDraw=%d fullscreen=%d BigWin=%d screen=%dx%d desktop=%dx%d\n",
 			(int) DDraw, (int) IsFullScreen, (int) BigWin, ScreenWidth, ScreenHeight, GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) );
 		DiagPrint( "columns: peek = PeekMessage calls by Storm, got = messages removed, idle = empty peeks,"
 			" maxIdleGap = longest time without an empty peek (Storm fires its timers only then),"
 			" disp = DispatchMessage time, draw = Storm surface -> screen (ConvertPaletteSurfaceToTrueColor incl. Present),"
-			" clip = ClipCursor calls / lost = the OS did not keep the clip, fg/focus = which window has them\n" );
+			" sdlgpaint = SDlgBeginPaint calls / forced = of those, fErase was FALSE and got forced (MenuForceRepaint),"
+			" clip = ClipCursor calls / lost = the OS did not keep the clip, fg/focus = which window has them,"
+			" ptr/over = real pointer position and the window under it\n" );
 	}
 }
 
@@ -249,9 +287,13 @@ void LinuxCompat_PatchStorm()
 	if( !Storm2Base ) return;
 	StormCheckTimers = (SDlgCheckTimers_t) GetProcAddress( Storm2Base, MAKEINTRESOURCEA( 203 ) );
 	// Hook only when something needs it, so Windows without the diagnostics stays untouched.
-	if( !( UseIdleSleep || UseTimerGuard || DiagLog ) ) return;
-	HookStormImport( 0x150452EC, "PeekMessageA", (void*) PeekMessage_storm );
-	HookStormImport( 0x150452E4, "DispatchMessageA", (void*) DispatchMessage_storm );
+	if( UseIdleSleep || UseTimerGuard || DiagLog ){
+		HookStormImport( 0x150452EC, "PeekMessageA", (void*) PeekMessage_storm );
+		HookStormImport( 0x150452E4, "DispatchMessageA", (void*) DispatchMessage_storm );
+	}
+	if( UseForceRepaint || DiagLog ){
+		HookStormImport( 0x150452CC, "BeginPaint", (void*) BeginPaint_storm );
+	}
 }
 
 bool LinuxCompat_MenuClipAllowed()

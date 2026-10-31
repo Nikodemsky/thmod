@@ -417,6 +417,7 @@ ConfigLine ConfigStructure[] = {
 	{ cfgString, 0, "MenuTimerGuard", 0, &cfg<MenuTimerGuard> },
 	{ cfgString, 0, "MenuClipCursor", 0, &cfg<MenuClipCursor> },
 	{ cfgString, 0, "MenuHideDialogWindows", 0, &cfg<MenuHideDialogWindows> },
+	{ cfgString, 0, "MenuForceRepaint", 0, &cfg<MenuForceRepaint> },
 	{ cfgString, 0, "MenuDiag", 0, &cfg<MenuDiag>, OFF },
 
 	{ cfgEnd }
@@ -447,6 +448,7 @@ void GetUserParameters()
 	MenuTimerGuard = ParseAutoOnOff( cfg<MenuTimerGuard> );
 	MenuClipCursor = ParseAutoOnOff( cfg<MenuClipCursor> );
 	MenuHideDialogWindows = ParseAutoOnOff( cfg<MenuHideDialogWindows> );
+	MenuForceRepaint = ParseAutoOnOff( cfg<MenuForceRepaint> );
 	IsNotMapOpen = _stricmp(cfg<IsNotMapOpen>, "open") != 0; // default map close
 	DrawMode = !(_stricmp( cfg<DrawMode>, "surface" ) == 0); // default on
 	FilteringMode = _stricmp( cfg<FilteringMode>, "off" ) == 0 ? D3DTEXF_NONE : D3DTEXF_LINEAR; // default on
