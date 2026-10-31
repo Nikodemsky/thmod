@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "LinuxCompat.h" // (fixes) Wine / Proton meta menu compatibility
 #include "AnimOrbs.h"
 
 bool MouseMoved = false;
@@ -6557,6 +6558,17 @@ static bool PrevMenuRestrictState = false;
 void RestrictMouseToMenu(HWND mWindow, const RECT& menuRect)
 {
 	if( !mWindow ) return;
+	// (fixes) config MenuClipCursor (auto = off under Wine): under Wine ClipCursor holds only while
+	// the clipping window is in the foreground, and the menu's foreground window is Storm's popup,
+	// so the clip was re-applied on every menu frame. Drop a clip of ours if one is still set.
+	if( !LinuxCompat_MenuClipAllowed() ){
+		if( PrevMenuRestrictState ){
+			PrevMenuRestrictState = false;
+			ClipCursor(nullptr);
+			PrevRestrictState = false;
+		}
+		return;
+	}
 	const bool restrictState = !gbRunGame && !VideoWindowExists && IsMainWindowActive && !IsSizingWindow;
 
 	if( !restrictState ){
@@ -6588,4 +6600,5 @@ void RestrictMouseToMenu(HWND mWindow, const RECT& menuRect)
 
 	PrevMenuRestrictState = true;
 	ClipCursor(&rect);
+	MenuDiag_OnClip(rect); // (fixes) counts the calls and whether the OS kept the clip
 }

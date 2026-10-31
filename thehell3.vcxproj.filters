@@ -366,6 +366,9 @@
     <ClCompile Include="src\TH1dll.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\LinuxCompat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\AffixEffects.cpp">
       <Filter>Resource Files</Filter>
     </ClCompile>
@@ -586,6 +589,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\MenuPortrait.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\LinuxCompat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\ItemOverlay.h">
