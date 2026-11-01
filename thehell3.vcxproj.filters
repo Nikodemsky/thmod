@@ -357,6 +357,9 @@
     <ClCompile Include="src\Config.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\DiscordRpc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\Hell.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

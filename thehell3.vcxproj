@@ -176,6 +176,7 @@
     <ClCompile Include="src\CharSlots.cpp" />
     <ClCompile Include="src\CodeSave.cpp" />
     <ClCompile Include="src\Config.cpp" />
+    <ClCompile Include="src\DiscordRpc.cpp" />
     <ClCompile Include="src\Crafting.cpp" />
     <ClCompile Include="src\dataseg.cpp" />
     <ClCompile Include="src\Draw.cpp" />

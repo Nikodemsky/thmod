@@ -297,6 +297,7 @@ void InitTH2( void* arg )
 	std::ios::sync_with_stdio( false );
 	GetParamsFromConfig();
 	InitLocalization(); // (th4)
+	DiscordRpc_Init(); // (integrations) does nothing unless DiscordRichPresence is on
 	LoadDlls();
 	PatchStormWin();
 	//(rt) SetupDisplayObjectsStructs(); // new sub, assigns the required coordinates and sizes to variables
