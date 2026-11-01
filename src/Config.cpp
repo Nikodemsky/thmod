@@ -227,6 +227,8 @@ bool OutbreakSaveFolder = true;
 bool DarkCampaignSaveFolder = true; // (th4)
 bool ColiseumSaveFolder = true;
 bool SelectGameModeLater = true;
+bool DiscordRichPresence = false; // (integrations) DiscordRpc.cpp
+char* DiscordAppId = nullptr; // (integrations) only its cfg<> text is used: an optional own Discord application id
 
 // (rt) cfg<ParamName> is now used instead of manually creating a variable for each parameter's string buffer
 // (rt) the ability to set a default value was also added, for bool parameters only for now
@@ -421,6 +423,8 @@ ConfigLine ConfigStructure[] = {
 	{ cfgString, MO_BOOL, "DarkCampaignSaveFolder", 0, &cfg<DarkCampaignSaveFolder>, ON }, // (th4)
 	{ cfgString, MO_BOOL, "ColiseumSaveFolder", 0, &cfg<ColiseumSaveFolder>, ON },
 	{ cfgString, MO_BOOL, "SelectGameModeLater", 0, &cfg<SelectGameModeLater>, ON },
+	{ cfgString, 0, "DiscordRichPresence", 0, &cfg<DiscordRichPresence>, OFF }, // (integrations) DiscordRpc.cpp
+	{ cfgString, 0, "DiscordAppId", 0, &cfg<DiscordAppId> }, // (integrations) empty = the mod's own application
 
 	// (fixes) Wine / Proton meta menu compatibility, LinuxCompat.cpp. auto (default) = on under Wine, off on Windows (MenuClipCursor: auto = on everywhere)
 	{ cfgString, 0, "MenuIdleSleep", 0, &cfg<MenuIdleSleep> },
@@ -634,6 +638,12 @@ void GetUserParameters()
 void SaveUserParameters()
 {
 	void SaveMapConfig(); SaveMapConfig();
+}
+
+// (integrations) DiscordRpc.cpp; "" when the key is absent
+const char* DiscordAppIdFromConfig()
+{
+	return cfg<DiscordAppId>;
 }
 
 //----- (th2) ---------------------------------------------------------------

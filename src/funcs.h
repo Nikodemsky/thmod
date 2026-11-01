@@ -3035,3 +3035,9 @@ void __fastcall Powerup_MouseMove();
 void TryToDropSigil(int row, int col);
 void Outbreak_Script();
 
+// (integrations) Discord Rich Presence, DiscordRpc.cpp
+void DiscordRpc_Init();
+void DiscordRpc_GameStarted();
+void DiscordRpc_Update();
+void DiscordRpc_InMenu();
+

@@ -82,6 +82,7 @@ add_executable(th2
         src/stdafx.cpp
         src/th2_proposals.cpp
         src/Config.cpp
+        src/DiscordRpc.cpp
         src/Hell.cpp
         src/th2data.cpp
         src/TH1dll.cpp

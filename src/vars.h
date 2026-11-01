@@ -1766,6 +1766,7 @@ extern bool ShowGameMode;
 extern bool LowCpuUsage;
 extern bool ForceZoom;
 extern bool DynamicZoom;// (th4) mouse-wheel world zoom, DynamicZoom.cpp
+extern bool DiscordRichPresence;// (integrations) DiscordRpc.cpp
 extern bool ShowResolution;
 
 extern char* Elements[ET_COUNT];

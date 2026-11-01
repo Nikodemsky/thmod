@@ -2510,8 +2510,10 @@ void __fastcall RunGameLoop(int gameMessage) // run_game_loop
 	bool hasInput = false;
 
 	MSG msg;
+	DiscordRpc_GameStarted(); // (integrations)
 	while( gbRunGame ){
 		XinputMain();
+		DiscordRpc_Update(); // (integrations) cheap, rebuilds the presence every 2 s
 		AnimateLevelPalette(); // palette cycling
 
 		// if there are any messages in the queue, process them all
@@ -2638,6 +2640,7 @@ void __fastcall RunGameLoop(int gameMessage) // run_game_loop
 	
 	UberDiabloKilled = false;
 	ResetSpeedrunTimer();
+	DiscordRpc_InMenu(); // (integrations)
 	//GameMode = GM_NORMAL; // don't need after adding coliseum (break the menu game mode workflow)
 }
 //----- (004091B5) -------------------------------------------------------- game
