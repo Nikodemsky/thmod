@@ -85,6 +85,7 @@ add_executable(th2
         src/Hell.cpp
         src/th2data.cpp
         src/TH1dll.cpp
+        src/LinuxCompat.cpp
         src/AffixEffects.cpp
         src/AffixesRare.cpp
         src/Perks.cpp

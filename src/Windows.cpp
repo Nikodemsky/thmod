@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "LinuxCompat.h" // (fixes) Wine / Proton
 
 //----- (0041D2FF) -------------------------------------------------------- FileIO
 void __fastcall CloseGameArchives(bool exitGame)
@@ -215,6 +216,7 @@ void CreateMainWindow()
 	}
 	// wndmode.dll nevermore
 	ShowWindow( hWnd, SW_SHOWNORMAL );
+	LinuxCompat_OnMainWindowShown( hWnd ); // (fixes) black instead of white until the first frame under Wine
 	UpdateWindow( hWnd ); // (rt) no visible effect, probably because WM_PAINT isn't handled
 	#ifndef USE_32BITCOLOR
 	WaitForOldWinExplorerClosed();
