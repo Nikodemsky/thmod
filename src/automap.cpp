@@ -402,6 +402,8 @@ void CleanAutoMapGraphics()
 	AutomapLinePointsCount = 0;
 }
 
+static void AutomapDrawBattleMarkers(); // (thmod) BATTLE MARKERS, defined below AutoMapIsometricCalc
+
 //----- (00401F72) --------------------------------------------------------
 void DrawAutoMap()
 {
@@ -564,6 +566,9 @@ void DrawAutoMap()
 		
 		if( AutomapMode && MapItem ){
 			AutomapDrawItems();
+		}
+		if( AutomapMode && (Dungeon->genType || Dungeon->isQuest) ){
+			AutomapDrawBattleMarkers(); // (thmod) BATTLE MARKERS, on top of the items
 		}
 		DrawLevelInfo();
 		//AutomapZoomFactor = oldAutomapZoomFactor;
@@ -753,6 +758,33 @@ static void AutomapDrawLastMonster( int r, int c, int monstersLeft )
 		int x = 0, y = 0;
 		AutoMapIsometricCalc( r, c, x, y );
 		AutomapDrawOneItem( x, y, 228 + ( ColorShifter / 2 ) ); //flashing_red
+	}
+}
+
+// (thmod) BATTLE MARKERS: a red blinking X on the map for every monster the "In battle... N monsters" line
+// counts (MonstersActivated() in thehell2.cpp: not a talking monster, ActivationCounter set), anywhere on the
+// level -- on both maps: AutomapMode 1 (the big automap over the screen; AutomapDrawLine drops what falls
+// off-screen) and AutomapMode 2 (the minimap in the corner), explored cells or not. Monsters on our side
+// (MF_6_FRIENDLY: the Dark Campaign escort, berserked monsters) are skipped. Same gate as THE LAST MONSTERS
+// MARKER: Ironman, Survival and Outbreak, or config ShowObjectsOnMiniMap on. Not tied to MapItem (items on
+// the map). Local display only -- nothing synced or saved. The blink runs off GetTickCount (ColorShifter is
+// frozen, see above): drawn for 2/3 of every 450 ms.
+static void AutomapDrawBattleMarkers()
+{
+	if( !( GameMode == GM_IRONMAN || GameMode == GM_SURVIVAL || GameMode == GM_OUTBREAK || ShowObjectsOnMiniMap ) ) return;
+	if( GetTickCount() % 450 >= 300 ) return;	// the "off" part of the blink
+	const uchar color = 228;					// the red of THE LAST MONSTERS MARKER
+	const int h = max( AutomapZoom4, 2 );		// half the X: 5 px on the minimap, grows with the automap zoom
+	for( int i = SummonMonsters_Count; i < MonstersCount; i++ ){
+		const Monster& monster = Monsters[ MonsterIndexes[ i ] ];
+		if( monster.speechIndex || !monster.ActivationCounter ) continue;	// as MonstersActivated()
+		if( monster.flag & MF_6_FRIENDLY ) continue;
+		const int r = monster.Row, c = monster.Col;
+		if( r < 0 || r >= 112 || c < 0 || c >= 112 ) continue;
+		int x = 0, y = 0;
+		AutoMapIsometricCalc( r, c, x, y );		// the centre of the cell, as the item diamonds use it
+		AutomapDrawLine( x - h, y - h, x + h, y + h, color );
+		AutomapDrawLine( x - h, y + h, x + h, y - h, color );
 	}
 }
 
