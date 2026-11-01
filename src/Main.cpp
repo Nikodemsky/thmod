@@ -6578,10 +6578,11 @@ void RestrictMouseToMenu(HWND mWindow, const RECT& menuRect)
 		return;
 	}
 
-	POINT ul{ menuRect.left,  menuRect.top    };
-	POINT lr{ menuRect.right, menuRect.bottom };
-	MapWindowPoints(mWindow, nullptr, &ul, 1);
-	MapWindowPoints(mWindow, nullptr, &lr, 1);
+	// (fixes) the dialog space starts at MenuDialogOrigin(), which is the client origin of mWindow
+	// unless a window manager placed the menu dialogs elsewhere (LinuxCompat.cpp)
+	const POINT o = MenuDialogOrigin();
+	POINT ul{ menuRect.left + o.x,  menuRect.top + o.y    };
+	POINT lr{ menuRect.right + o.x, menuRect.bottom + o.y };
 	// ClipCursor's right and bottom are EXCLUSIVE; the rect passed in ends on the last pixel.
 	const RECT rect = { ul.x, ul.y, lr.x + 1, lr.y + 1 };
 

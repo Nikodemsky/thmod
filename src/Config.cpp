@@ -420,6 +420,7 @@ ConfigLine ConfigStructure[] = {
 	{ cfgString, 0, "MenuForceRepaint", 0, &cfg<MenuForceRepaint> },
 	{ cfgString, 0, "MenuKeepFocus", 0, &cfg<MenuKeepFocus> },
 	{ cfgString, 0, "MenuKeepOnTop", 0, &cfg<MenuKeepOnTop> },
+	{ cfgString, 0, "MenuFollowPlacement", 0, &cfg<MenuFollowPlacement> },
 	{ cfgString, 0, "MenuDiag", 0, &cfg<MenuDiag>, OFF },
 
 	{ cfgEnd }
@@ -453,6 +454,7 @@ void GetUserParameters()
 	MenuForceRepaint = ParseAutoOnOff( cfg<MenuForceRepaint> );
 	MenuKeepFocus = ParseAutoOnOff( cfg<MenuKeepFocus> );
 	MenuKeepOnTop = ParseAutoOnOff( cfg<MenuKeepOnTop> );
+	MenuFollowPlacement = ParseAutoOnOff( cfg<MenuFollowPlacement> );
 	IsNotMapOpen = _stricmp(cfg<IsNotMapOpen>, "open") != 0; // default map close
 	DrawMode = !(_stricmp( cfg<DrawMode>, "surface" ) == 0); // default on
 	FilteringMode = _stricmp( cfg<FilteringMode>, "off" ) == 0 ? D3DTEXF_NONE : D3DTEXF_LINEAR; // default on

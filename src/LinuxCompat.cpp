@@ -33,6 +33,7 @@ int MenuHideDialogWindows = -1;
 int MenuForceRepaint = -1;
 int MenuKeepFocus = -1;
 int MenuKeepOnTop = -1;
+int MenuFollowPlacement = -1;
 bool MenuDiag = false;
 
 // effective switches, resolved from the raw values in LinuxCompat_Init()
@@ -43,11 +44,16 @@ static bool UseHideDialogs = false;
 static bool UseForceRepaint = false;
 static bool UseKeepFocus = false;
 static bool UseKeepOnTop = false;
+static bool UseFollowPlacement = false;
 
-// Every top-level window Storm creates through CreateWindowEx_storm, with the place it was put
-// relative to the game window's client area (see KeepDialogsInPlace).
-struct TrackedDialog { HWND hwnd; POINT rel; };
+// Every top-level window Storm creates through CreateWindowEx_storm: where it was asked to go
+// (screen coordinates) and in which order it was created (see MenuDialogOrigin).
+struct TrackedDialog { HWND hwnd; POINT asked; POINT last; unsigned seq; bool reported; };
 static TrackedDialog Tracked[ 32 ];
+static unsigned TrackedSeq = 0;
+static DWORD OriginCacheTick = 0;
+static bool OriginCacheValid = false;
+static POINT OriginCache;
 
 // Storm dialogs created WS_EX_TRANSPARENT (every nested full-screen dialog: hero list, class,
 // subclass, traits, name entry ...). See LinuxCompat_OnStormWindowCreated: the style is taken
@@ -263,25 +269,33 @@ static void KeepDialogsInPlace( DWORD now )
 	lastCheck = now;
 	HWND live[ 32 ];
 	int n = 0;
-	POINT origin = { 0, 0 };
-	ClientToScreen( ghMainWnd, &origin );
 	bool covered = false;
 	for( TrackedDialog& t: Tracked ){
 		if( !t.hwnd ) continue;
 		if( !IsWindow( t.hwnd ) ){ t.hwnd = 0; continue; }
 		if( !IsWindowVisible( t.hwnd ) ) continue;
 		live[ n++ ] = t.hwnd;
-		// position: a window manager may place a new window on its own
+		// Report (once) a dialog the window manager put somewhere else than asked. It is NOT
+		// moved back: GNOME (Mutter) keeps managed windows below its top bar and simply moves
+		// them again, so the first try at this made the menu jump between the two places
+		// (Bazzite GNOME test: 0,0 <-> 0,32 ten times a second). MenuDialogOrigin follows the
+		// window instead.
 		RECT r;
 		GetWindowRect( t.hwnd, &r );
-		const int x = origin.x + t.rel.x, y = origin.y + t.rel.y;
-		if( r.left != x || r.top != y ){
-			DiagPrint( "storm window %p was at %d,%d instead of %d,%d -> moved back\n", t.hwnd, r.left, r.top, x, y );
-			SetWindowPos( t.hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE );
-			RedrawWindow( t.hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN );
+		if( !t.reported && ( r.left != t.asked.x || r.top != t.asked.y ) ){
+			t.reported = true;
+			DiagPrint( "storm window %p placed by the window manager at %d,%d (asked %d,%d)%s\n", t.hwnd, r.left, r.top, t.asked.x, t.asked.y,
+				UseFollowPlacement ? " -> the menu follows it" : "" );
+		}
+		if( r.left != t.last.x || r.top != t.last.y ){
+			// it moved since the last look: Storm drew it at the old place, so recompute the
+			// dialog space and repaint everything at the new one
+			t.last = { r.left, r.top };
+			OriginCacheValid = false;
+			if( UseFollowPlacement ) RedrawWindow( t.hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN );
 			if( DiagLog ) ++D.moved;
 		}
-		if( IsAbove( ghMainWnd, t.hwnd ) ) covered = true;
+		if( UseKeepOnTop && IsAbove( ghMainWnd, t.hwnd ) ) covered = true;
 	}
 	if( !covered ) return;
 	// order the dialogs bottom to top, then raise them in that order so they keep their own stacking
@@ -323,7 +337,7 @@ static BOOL __stdcall PeekMessage_storm( LPMSG msg, HWND hwnd, UINT filterMin, U
 		// so the menu keeps one core and wineserver busy doing nothing.
 		if( UseIdleSleep && !gbRunGame ) Sleep( 1 );
 	}
-	if( UseKeepOnTop && !gbRunGame ) KeepDialogsInPlace( now );
+	if( ( UseKeepOnTop || UseFollowPlacement ) && !gbRunGame ) KeepDialogsInPlace( now );
 	if( UseKeepFocus && !gbRunGame ) KeepMenuFocus( now );
 	DiagTick();
 	return got;
@@ -403,6 +417,7 @@ void LinuxCompat_Init()
 	UseForceRepaint = Resolve( MenuForceRepaint );
 	UseKeepFocus = Resolve( MenuKeepFocus );
 	UseKeepOnTop = Resolve( MenuKeepOnTop );
+	UseFollowPlacement = Resolve( MenuFollowPlacement );
 
 	if( MenuDiag && !DiagLog ){
 		QueryPerformanceFrequency( &QpcFreq );
@@ -413,8 +428,8 @@ void LinuxCompat_Init()
 		GetLocalTime( &st );
 		DiagPrint( "TH4 menu diagnostics, %04d-%02d-%02d %02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond );
 		DiagPrint( "wine=%d version=%s\n", (int) IsWine, IsWine ? WineVersion : "-" );
-		DiagPrint( "options (raw -1 auto/0 off/1 on -> effective): MenuIdleSleep %d->%d MenuTimerGuard %d->%d MenuClipCursor %d->%d MenuHideDialogWindows %d->%d MenuForceRepaint %d->%d MenuKeepFocus %d->%d MenuKeepOnTop %d->%d\n",
-			MenuIdleSleep, UseIdleSleep, MenuTimerGuard, UseTimerGuard, MenuClipCursor, UseMenuClip, MenuHideDialogWindows, UseHideDialogs, MenuForceRepaint, UseForceRepaint, MenuKeepFocus, UseKeepFocus, MenuKeepOnTop, UseKeepOnTop );
+		DiagPrint( "options (raw -1 auto/0 off/1 on -> effective): MenuIdleSleep %d->%d MenuTimerGuard %d->%d MenuClipCursor %d->%d MenuHideDialogWindows %d->%d MenuForceRepaint %d->%d MenuKeepFocus %d->%d MenuKeepOnTop %d->%d MenuFollowPlacement %d->%d\n",
+			MenuIdleSleep, UseIdleSleep, MenuTimerGuard, UseTimerGuard, MenuClipCursor, UseMenuClip, MenuHideDialogWindows, UseHideDialogs, MenuForceRepaint, UseForceRepaint, MenuKeepFocus, UseKeepFocus, MenuKeepOnTop, UseKeepOnTop, MenuFollowPlacement, UseFollowPlacement );
 		DiagPrint( "config: DDraw=%d fullscreen=%d BigWin=%d screen=%dx%d desktop=%dx%d\n",
 			(int) DDraw, (int) IsFullScreen, (int) BigWin, ScreenWidth, ScreenHeight, GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) );
 		DiagPrint( "columns: peek = PeekMessage calls by Storm, got = messages removed, idle = empty peeks,"
@@ -422,7 +437,7 @@ void LinuxCompat_Init()
 			" disp = DispatchMessage time, draw = Storm surface -> screen (ConvertPaletteSurfaceToTrueColor incl. Present),"
 			" sdlgpaint = SDlgBeginPaint calls / forced = of those, fErase was FALSE and got forced (MenuForceRepaint),"
 			" refocus = foreground handed back to the menu dialog (MenuKeepFocus),"
-			" raised/moved = menu dialogs put back above the game window / at their place (MenuKeepOnTop),"
+			" raised = menu dialogs put back above the game window (MenuKeepOnTop), moved = dialogs the window manager placed elsewhere (MenuFollowPlacement),"
 			" clip = ClipCursor calls / lost = the OS did not keep the clip, fg/focus = which window has them,"
 			" ptr/over = real pointer position and the window under it\n" );
 	}
@@ -433,7 +448,7 @@ void LinuxCompat_PatchStorm()
 	if( !Storm2Base ) return;
 	StormCheckTimers = (SDlgCheckTimers_t) GetProcAddress( Storm2Base, MAKEINTRESOURCEA( 203 ) );
 	// Hook only when something needs it, so Windows without the diagnostics stays untouched.
-	if( UseIdleSleep || UseTimerGuard || UseKeepFocus || UseKeepOnTop || DiagLog ){
+	if( UseIdleSleep || UseTimerGuard || UseKeepFocus || UseKeepOnTop || UseFollowPlacement || DiagLog ){
 		HookStormImport( 0x150452EC, "PeekMessageA", (void*) PeekMessage_storm );
 		HookStormImport( 0x150452E4, "DispatchMessageA", (void*) DispatchMessage_storm );
 	}
@@ -454,11 +469,10 @@ bool LinuxCompat_MenuClipAllowed()
 void LinuxCompat_OnStormWindowCreated( HWND hwnd, DWORD exStyle, DWORD style, int x, int y, int w, int h )
 {
 	bool hidden = false, stripped = false;
-	if( hwnd && !( style & WS_CHILD ) && ghMainWnd ){
-		POINT origin = { 0, 0 };
-		ClientToScreen( ghMainWnd, &origin );
+	if( hwnd && !( style & WS_CHILD ) ){
 		for( TrackedDialog& t: Tracked ) if( t.hwnd && !IsWindow( t.hwnd ) ) t.hwnd = 0;
-		for( TrackedDialog& t: Tracked ) if( !t.hwnd ){ t.hwnd = hwnd; t.rel = { x - origin.x, y - origin.y }; break; }
+		for( TrackedDialog& t: Tracked ) if( !t.hwnd ){ t = { hwnd, { x, y }, { x, y }, ++TrackedSeq, false }; break; }
+		OriginCacheValid = false;
 	}
 	if( hwnd && UseHideDialogs && !( style & WS_CHILD ) ){
 		// Storm never paints these popups itself (it blits the dialog art into its DirectDraw
@@ -495,4 +509,37 @@ void LinuxCompat_OnMainWindowShown( HWND hwnd )
 		FillRect( dc, &rc, (HBRUSH) GetStockObject( BLACK_BRUSH ) );
 		ReleaseDC( hwnd, dc );
 	}
+}
+
+// Screen position of the 640x480 space the menu dialogs are laid out in. TH4 maps every
+// coordinate Storm sees through it (TH1dll.cpp: GetCursorPos_, ClientToScreen_, ScreenToClient_,
+// GetWindowRect_, CreateWindowEx_storm; Main.cpp RestrictMouseToMenu; MenuPortrait.cpp).
+// Originally that was always the game window's client origin, which assumes the dialogs sit
+// exactly there. Under Wine a window manager may place them elsewhere: GNOME keeps them below
+// its top bar (0,32 instead of 0,0), and then Storm drew the menu 32 pixels low (the bottom
+// cut off) while the clicks and the pointer clip were 32 pixels off. With MenuFollowPlacement
+// the origin is where the oldest visible full-size Storm dialog really is, so all those spaces
+// agree again wherever the window manager put it. Without dialogs, or with the option off
+// (Windows default), it is the game window's client origin as before.
+POINT MenuDialogOrigin()
+{
+	POINT o = { 0, 0 };
+	if( ghMainWnd ) ClientToScreen( ghMainWnd, &o );
+	if( !UseFollowPlacement || gbRunGame ) return o;
+	const DWORD now = GetTickCount();
+	if( OriginCacheValid && now - OriginCacheTick < 15 ) return OriginCache;
+	unsigned bestSeq = 0;
+	for( const TrackedDialog& t: Tracked ){
+		if( !t.hwnd || ( bestSeq && t.seq > bestSeq ) ) continue;
+		if( !IsWindow( t.hwnd ) || !IsWindowVisible( t.hwnd ) ) continue;
+		RECT r;
+		GetWindowRect( t.hwnd, &r );
+		if( r.right - r.left < GUI_Width || r.bottom - r.top < GUI_Height ) continue; // small centred boxes do not define the space
+		bestSeq = t.seq;
+		o = { r.left, r.top };
+	}
+	OriginCache = o;
+	OriginCacheTick = now;
+	OriginCacheValid = true;
+	return o;
 }

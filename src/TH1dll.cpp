@@ -355,7 +355,7 @@ BOOL __stdcall GetCursorPos_( LPPOINT lpPoint )
 {
 	POINT p;
 	BOOL result = GetCursorPos( &p );
-	ScreenToClient( ghMainWnd, &p );
+	{ const POINT o = MenuDialogOrigin(); p.x -= o.x; p.y -= o.y; } // (fixes) was ScreenToClient( ghMainWnd ); see LinuxCompat.cpp MenuDialogOrigin
 	// (rt) the menu can't handle a resizable window yet
 	static POINT lastValid = {	p.x < 0 ? 0 : (p.x >= ScreenWidth ? ScreenWidth : p.x),
 								p.y < 0 ? 0 : (p.x >= ScreenHeight ? ScreenHeight : p.y) };
@@ -373,8 +373,7 @@ BOOL __stdcall GetCursorPos_( LPPOINT lpPoint )
 
 BOOL __stdcall ClientToScreen_( HWND hwnd, LPPOINT lppoint )
 {
-	POINT p{ 0, 0 };
-	ClientToScreen( ghMainWnd, &p );
+	POINT p = MenuDialogOrigin(); // (fixes) was the game window's client origin; see LinuxCompat.cpp
 	static POINT prev = p;
 	if( prev.x != p.x || prev.y != p.y ){
 		//if( MainMainMenu ) MoveWindow( DlgHwnd, p.x, p.y, 640, 48, FALSE );
@@ -389,8 +388,7 @@ BOOL __stdcall ClientToScreen_( HWND hwnd, LPPOINT lppoint )
 // (rt) for the windowed mode fix in hell2.dll
 BOOL __stdcall ScreenToClient_( HWND hwnd, LPPOINT lppoint )
 {
-	POINT p{ 0, 0 };
-	ClientToScreen( ghMainWnd, &p );
+	POINT p = MenuDialogOrigin(); // (fixes) was the game window's client origin; see LinuxCompat.cpp
 	BOOL result = ScreenToClient( hwnd, lppoint );
 	lppoint->x += p.x;
 	lppoint->y += p.y;
@@ -400,8 +398,7 @@ BOOL __stdcall ScreenToClient_( HWND hwnd, LPPOINT lppoint )
 // (rt) for the windowed mode fix in hell2.dll
 BOOL __stdcall GetWindowRect_( HWND hwnd, LPRECT lprect )
 {
-	POINT p{ 0, 0 };
-	ClientToScreen( ghMainWnd, &p );
+	POINT p = MenuDialogOrigin(); // (fixes) was the game window's client origin; see LinuxCompat.cpp
 	static POINT prev = p;
 	if( prev.x != p.x || prev.y != p.y ){
 		//if( MainMainMenu ) MoveWindow( DlgHwnd, p.x, p.y, 640, 482, FALSE );
@@ -417,8 +414,7 @@ BOOL __stdcall GetWindowRect_( HWND hwnd, LPRECT lprect )
 
 HWND _stdcall CreateWindowEx_storm( DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam )
 {
-	POINT p { 0/*(ScreenWidth - GUI_Width)/2*/, 0/*(ScreenHeight - GUI_Height)/2*/ };
-	ClientToScreen( ghMainWnd, &p );
+	POINT p = MenuDialogOrigin(); // (fixes) was the game window's client origin; see LinuxCompat.cpp
 	//return DlgHwnd = CreateWindowExA( dwExStyle, lpClassName, lpWindowName, (dwExStyle == 65536) ? (WS_CHILD /*| WS_CLIPSIBLINGS*/ | (dwStyle & ~WS_POPUP)) : dwStyle, X /*p.x*/, Y /*p.y*/, nWidth, nHeight /*-2*/, global_hWnd /*hWndParent*/, hMenu, hInstance, lpParam );
 	
 	// (rt) make the increments here and in MoveWindow (and remove the resizing there)

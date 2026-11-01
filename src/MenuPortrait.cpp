@@ -8,6 +8,7 @@
 #include "stdafx.h"
 #include <math.h>
 #include "MenuPortrait.h"
+#include "LinuxCompat.h" // (fixes) MenuDialogOrigin
 
 #include <d3d9.h>
 #include <stdio.h>
@@ -362,7 +363,7 @@ static void DrawMenuCursorAbove(IDirect3DDevice9* dev,
     // invalidate rect as x .. x + width), so there is no hotspot to subtract.
     POINT cp;
     if (!GetCursorPos(&cp)) return;
-    if (ghMainWnd) ScreenToClient(ghMainWnd, &cp);
+    { const POINT o = MenuDialogOrigin(); cp.x -= o.x; cp.y -= o.y; } // (fixes) dialog space, see LinuxCompat.cpp
     const int cx = cp.x;
     const int cy = cp.y;
 
@@ -454,7 +455,7 @@ void MenuPortrait_DrawOverlay(IDirect3DDevice9* dev, const RECT& srcRect, const 
     // the non-client border -- it slides down and right off the frame it belongs in.
     // Map to client space so the two spaces agree in every window state.
     POINT wp = { wr.left, wr.top };
-    if (ghMainWnd) ScreenToClient(ghMainWnd, &wp);
+    { const POINT o = MenuDialogOrigin(); wp.x -= o.x; wp.y -= o.y; } // (fixes) dialog space, see LinuxCompat.cpp
 
     gGuiX = wp.x; gGuiY = wp.y;
     gGuiW = wr.right - wr.left; gGuiH = wr.bottom - wr.top;
