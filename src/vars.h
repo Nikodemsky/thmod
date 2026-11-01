@@ -1645,6 +1645,7 @@ extern bool IceAgeTreeSnow; // (th4) Config.cpp; Ice Age snow-covered, frosted t
 extern bool IceAgeRiverMirror; // (th4) Config.cpp; Ice Age town river mirrors a winter sky, dx_utility.cpp IceRiver_Active (default off)
 extern bool AutomapShadow; // (th4) Config.cpp; automap.cpp AUTOMAP SHADOW
 extern bool StairLabels; // (thmod) Config.cpp; automap.cpp STAIR LABELS
+extern bool ShowBattleMarkers; // (thmod) Config.cpp; automap.cpp BATTLE MARKERS
 extern bool ShowItemLevelOnGround; // (th4) Config.cpp; used by automap.cpp HighlightItemsNameOnMap
 extern bool FsrUpscale;   // (th4) Config.cpp; used by dx_utility.cpp FsrPresent
 extern int FsrSharpness;  // (th4) Config.cpp; 0..20 = 0.0..2.0 stops

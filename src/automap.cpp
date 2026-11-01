@@ -568,7 +568,7 @@ void DrawAutoMap()
 			AutomapDrawItems();
 		}
 		if( AutomapMode && (Dungeon->genType || Dungeon->isQuest) ){
-			AutomapDrawBattleMarkers(); // (thmod) BATTLE MARKERS, on top of the items
+			AutomapDrawBattleMarkers(); // (thmod) BATTLE MARKERS (config ShowBattleMarkers), on top of the items
 		}
 		DrawLevelInfo();
 		//AutomapZoomFactor = oldAutomapZoomFactor;
@@ -738,6 +738,12 @@ void AutoMapIsometricCalc(int row, int col, int& x, int& y)
 
 int ColorShifter = 0;
 
+// (thmod) BATTLE MARKERS (below): the monsters that get one -- as MonstersActivated(), minus our side
+static bool HasBattleMarker( const Monster& monster )
+{
+	return !monster.speechIndex && monster.ActivationCounter && !( monster.flag & MF_6_FRIENDLY );
+}
+
 // (th4) THE LAST MONSTERS MARKER: a red dot on the map for every monster still alive once the level is down to
 // its last few (at most 10; 30 in Outbreak). Only in Ironman, Survival and Outbreak, or with the config
 // ShowObjectsOnMiniMap on -- on purpose (Mordor: those modes are about clearing levels). Its colour was meant to
@@ -754,6 +760,7 @@ static void AutomapDrawLastMonster( int r, int c, int monstersLeft )
 	if( !( GameMode == GM_IRONMAN || GameMode == GM_SURVIVAL || GameMode == GM_OUTBREAK || ShowObjectsOnMiniMap ) ) return;
 	const int monLeftMax = GameMode == GM_OUTBREAK ? 30 : 10;
 	const int monsterNum = MonsterMap[ r ][ c ];
+	if( ShowBattleMarkers && monsterNum && HasBattleMarker( Monsters[ abs( monsterNum ) - 1 ] ) ) return;	// (thmod) its BATTLE MARKER is drawn instead
 	if( monstersLeft <= monLeftMax && monsterNum >= SummonMonsters_Count ){
 		int x = 0, y = 0;
 		AutoMapIsometricCalc( r, c, x, y );
@@ -761,30 +768,36 @@ static void AutomapDrawLastMonster( int r, int c, int monstersLeft )
 	}
 }
 
-// (thmod) BATTLE MARKERS: a red blinking X on the map for every monster the "In battle... N monsters" line
-// counts (MonstersActivated() in thehell2.cpp: not a talking monster, ActivationCounter set), anywhere on the
-// level -- on both maps: AutomapMode 1 (the big automap over the screen; AutomapDrawLine drops what falls
-// off-screen) and AutomapMode 2 (the minimap in the corner), explored cells or not. Monsters on our side
-// (MF_6_FRIENDLY: the Dark Campaign escort, berserked monsters) are skipped. Same gate as THE LAST MONSTERS
-// MARKER: Ironman, Survival and Outbreak, or config ShowObjectsOnMiniMap on. Not tied to MapItem (items on
-// the map). Local display only -- nothing synced or saved. The blink runs off GetTickCount (ColorShifter is
-// frozen, see above): drawn for 2/3 of every 450 ms.
+// (thmod) BATTLE MARKERS (config ShowBattleMarkers, off by default; local only -- nothing synced or saved):
+// a pulsing red square -- the item marker, AutomapDrawOneItem -- on the map for every monster the
+// "In battle... N monsters" line counts (MonstersActivated() in thehell2.cpp: not a talking monster,
+// ActivationCounter set), anywhere on the level and on both maps: AutomapMode 1 (the big automap over the
+// screen; AutomapDrawLine drops what falls off-screen) and AutomapMode 2 (the minimap in the corner),
+// explored cells or not. Monsters on our side (MF_6_FRIENDLY: the Dark Campaign escort, berserked monsters)
+// get none. The config alone switches it, in every game mode; not tied to MapItem (items on the map).
+// THE PULSE: the colour slides smoothly along the palette's red ramp, BattleMarkerBright (the brightest red)
+// to BattleMarkerDark and back, one cycle every BattleMarkerPulseMs, worked out from GetTickCount (ColorShifter
+// is frozen, see above). The square stays on the map the whole time -- it fades, it does not switch off.
+// THE LAST MONSTERS MARKER skips a monster that carries a battle marker, so the two squares do not overlap.
+const uchar BattleMarkerBright = 224;	// red ramp 224..239, 224 = brightest; 234 is the monster HP-bar red
+const uchar BattleMarkerDark = 238;
+const int BattleMarkerPulseMs = 1000;
+
 static void AutomapDrawBattleMarkers()
 {
-	if( !( GameMode == GM_IRONMAN || GameMode == GM_SURVIVAL || GameMode == GM_OUTBREAK || ShowObjectsOnMiniMap ) ) return;
-	if( GetTickCount() % 450 >= 300 ) return;	// the "off" part of the blink
-	const uchar color = 228;					// the red of THE LAST MONSTERS MARKER
-	const int h = max( AutomapZoom4, 2 );		// half the X: 5 px on the minimap, grows with the automap zoom
+	if( !ShowBattleMarkers ) return;
+	const int half = BattleMarkerPulseMs / 2;
+	const int phase = int( GetTickCount() % BattleMarkerPulseMs );
+	const int t = phase < half ? phase : BattleMarkerPulseMs - phase;	// 0 .. half .. 0, a triangle wave
+	const uchar color = uchar( BattleMarkerBright + t * ( BattleMarkerDark - BattleMarkerBright ) / half );
 	for( int i = SummonMonsters_Count; i < MonstersCount; i++ ){
 		const Monster& monster = Monsters[ MonsterIndexes[ i ] ];
-		if( monster.speechIndex || !monster.ActivationCounter ) continue;	// as MonstersActivated()
-		if( monster.flag & MF_6_FRIENDLY ) continue;
+		if( !HasBattleMarker( monster ) ) continue;
 		const int r = monster.Row, c = monster.Col;
 		if( r < 0 || r >= 112 || c < 0 || c >= 112 ) continue;
 		int x = 0, y = 0;
-		AutoMapIsometricCalc( r, c, x, y );		// the centre of the cell, as the item diamonds use it
-		AutomapDrawLine( x - h, y - h, x + h, y + h, color );
-		AutomapDrawLine( x - h, y + h, x + h, y - h, color );
+		AutoMapIsometricCalc( r, c, x, y );		// the same cell centre the item squares use
+		AutomapDrawOneItem( x, y, color );
 	}
 }
 
