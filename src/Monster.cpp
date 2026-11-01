@@ -559,6 +559,20 @@ void __fastcall VaccinateMonster( Monster& monster )
 	if( monster.ResistImmune & MR_11_IM_COLD ){ monster.ResistImmune &= ~MR_11_IM_COLD; /*monster.ResistImmune |= MR_10_COLD;*/ }
 }
 
+// (thmod) INQUISITOR'S FAVOUR: with acid gone some bosses could not be hurt by a Hydramancer's spells at all --
+// the ones immune to fire, lightning and arcane that are not undead (holy only hurts the undead) and are not
+// immune to acid (Andariel, Na-Krul, Grimspike and 18 others). Such a boss loses one immunity instead of being
+// open to acid: a demon becomes vulnerable to lightning, a beast to fire. Single player only, like Vaccinated.
+static void InquisitorsFavourBossImmunity( Monster& boss )
+{
+	const MONSTER_RESIST fireLightArcane = MONSTER_RESIST(MR_4_IM_ARCAN | MR_5_IM_FIRE | MR_6_IM_LIGHT);
+	if( (boss.ResistImmune & fireLightArcane) != fireLightArcane || (boss.ResistImmune & MR_8_IM_ACID) ) return;
+	switch( boss.BasePtr->MonsterClass ){
+	case MON_1_DEMON: boss.ResistImmune &= ~MR_6_IM_LIGHT; break;
+	case MON_2_BEAST: boss.ResistImmune &= ~MR_5_IM_FIRE;  break;
+	}
+}
+
 //----- (0043B159) --------------------------------------------------------
 void __fastcall CreateMonster(int monsterIndex, int direction, int monsterSpriteIndex, int row, int col)
 {
@@ -2490,6 +2504,9 @@ void __fastcall CreateBoss(int uniqMonsterIndex, int bossPackSpriteIndex, int pa
 	boss->ResistImmune = uniqMonster->ResistImmune;
 	if( Players[CurrentPlayerIndex].gameChanger & BIT(GC_11_VACCINATED) && MaxCountOfPlayersInGame == 1){
 		VaccinateMonster(*boss);
+	}
+	if( InquisitorsFavour(CurrentPlayerIndex) && MaxCountOfPlayersInGame == 1 ){ // (thmod)
+		InquisitorsFavourBossImmunity(*boss);
 	}
 	// (rt) here Lazarus enters the talking state again
 	boss->speechIndex = uniqMonster->SpecialSound;
