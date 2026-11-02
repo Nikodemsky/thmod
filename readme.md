@@ -1,0 +1,84 @@
+# Niko's submod
+
+Submod for The Hell 4 based on source provided for v.744
+
+## Installation
+
+1. Grab latest version of submod from [releases](https://github.com/Nikodemsky/thmod/releases/latest)
+2. Use your own copy of v0.744 or [download backup](https://drive.google.com/file/d/1p50lTU8JDtfFM8lgLKiXp9vUwr3V4ROT/view)
+3. Unpack submod and put the .exe file in the root folder of the main mod (replace existing .exe file)
+
+> [!IMPORTANT]
+> Remember about DIABDAT.mpq from your own, genuine copy of Diablo.
+
+## Features
+
+### QOL's:
+
+01. Custom markings for Stairs/Entrances
+
+> [!NOTE]
+> Enabled by default, disable by setting: `set StairLabels off`
+
+02. Full support for mouse scroll in the main menu
+03. Added timer for The Den (Rampaging demon quest)
+04. Added pedestal next to statues for Island of the Sunless sea
+* opens portal right away, 
+* costs 99% current hp/mp and 5% of current level's xp
+
+05. Monster tracking on minimap<br>
+tracks aggroed monsters on the minimap, based on implementation of StArchon/Godroll
+
+> [!NOTE]
+> Disabled by default, enable by adding:
+`set ShowBattleMarkers on`
+
+### Mechanics:
+
+01. New GC for Hydramancer - Inquisitor's favour; converts Acid element to holy one for hydras
+02. Redesigned synergies for hydramancer [**WIP**]
+03. New GC for Guardian - Siegemaster, allows to summon Trapper and Bombardier minions [**WIP**]
+
+### Custom functionalities
+
+01. Shared stash
+
+> [!NOTE]
+> disabled by default, enable by adding:
+`set SharedStash on` in the config
+
+* available only for default single player mode (no Classic/Colosseum etc.)
+* each new stash tab costs 3x more, than personal equivalent
+* items, that could morph or would be incompatible with current character will simply be locked
+* Access via "Open safe deposit box" option, Gillian
+
+02. Rich presence for Discord
+
+> [!NOTE]
+> disabled by default, enable by adding:
+`set DiscordRichPresence on` to the config file
+
+03. Linux compability layer for wine/proton
+* Works with `set DDraw off`
+* Enabled by default, no need for additional configurations
+* Incorporated into main mod, as of v0.811
+* Tested on KDE/Xfce/Gnome/Cinnamon desktop enviroments
+
+
+_________________
+
+### TO DO's
+
+- [ ] Show current debuffs as icons or text infos in UI
+- [ ] Further balance for new hydramancer's synergies (chances and maybe requirements)
+- [ ] Further works on Siegemaster (as of now, it's just baseline)
+- [ ] Rebalance paladin (mostly hammers)
+- [ ] Custom rule for normal mode, allowing to save everywhere (probably same implementation as in Antigrind submod, via GC)
+- [ ] Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)
+- [ ] Big maybe: custom mechanics for Super Mutant GC
+- [ ] Big maybe: new, custom tab with additional info, or stricly technical info for the current character
+- [ ] Small maybe: Custom greetings for npc's
+- [ ] Maybe: Some custom works on Warlord
+
+<br>
+and more.
