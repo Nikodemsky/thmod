@@ -122,6 +122,8 @@ void XinputHandleAButtonLeftClick()
 			if( CursorIntoDisplayObject(QuestPanelTextAreaRect) ){
 				QuestPanel_CheckLButtonClick();
 			}
+		}else if( CursorIntoCharPanelTabs() ){ // (thmod) Character / Cap/Stats tabs
+			CharPanelTabs_Click();
 		}else if( IsCHARPanelVisible && CursorIntoDisplayObject(CharPanelRect) ){
 			CharPanel_MouseDown();
 		}else if( IsStashPanelVisible && CursorIntoDisplayObject(VisualStashPanel) ){
@@ -175,7 +177,7 @@ void XinputMain()
 		if (curXboxController.GetXInputGetKeystroke(XINPUT_GAMEPAD_START) == XINPUT_KEYSTROKE_KEYDOWN && !IsXinputGuideVisible) KeyPressHandler(VK_27_ESC_KEY);
 		if (curXboxController.GetXInputGetKeystroke(XINPUT_GAMEPAD_Y) == XINPUT_KEYSTROKE_KEYDOWN) IsINVPanelVisible ? ChangeAltWeaponPairToNext(false) : ChangeAltWeaponPairToNext(true);
 		if (curXboxController.GetXInputGetKeystroke(XINPUT_GAMEPAD_RIGHT_THUMB) == XINPUT_KEYSTROKE_KEYDOWN) ToggleInventoryPanel();
-		if (curXboxController.GetXInputGetKeystroke(XINPUT_GAMEPAD_LEFT_THUMB) == XINPUT_KEYSTROKE_KEYDOWN) ToggleCharPanel();
+		if (curXboxController.GetXInputGetKeystroke(XINPUT_GAMEPAD_LEFT_THUMB) == XINPUT_KEYSTROKE_KEYDOWN) CharPanel_PadCycle(); // (thmod) closed -> Character -> Cap/Stats -> closed
 		if (Speech_IsPanelVisible) {
 			if ( curXboxController.GetXInputGetKeystroke(XINPUT_GAMEPAD_X) == XINPUT_KEYSTROKE_KEYDOWN
 			  || curXboxController.GetXInputGetKeystroke(XINPUT_GAMEPAD_A) == XINPUT_KEYSTROKE_KEYDOWN
@@ -703,6 +705,7 @@ bool XinputDontHideCursor()
 		|| IsQUESTPanelVisible       && CursorIntoDisplayObject(QuestPanelRect)
 		|| IsSpellBookVisible        && CursorIntoDisplayObject(SpellBookRect)
 		|| IsCHARPanelVisible        && CursorIntoDisplayObject(CharPanelRect)
+		|| CursorIntoCharPanelTabs() // (thmod)
 		|| CursorInMainPanel()       && (Cur.InventoryCellID != -1 || InfoPanelUsed)
 		|| CursorIntoLevelUpButton()
 		|| CursorIntoPerkUpButton()

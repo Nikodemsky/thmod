@@ -235,6 +235,7 @@ const char* GetFullClassName( int playerIndex )
 //----- (00405B43) --------------------------------------------------------
 void CharPanel_Draw()
 {
+	if( CharPanelMorePage ){ CharPanelMore_Draw(); return; } // (thmod) More page, see CharPanelMore.cpp
 	char stringBuffer[64];
 	int fontColor;
 	
@@ -543,6 +544,7 @@ bool CursorIntoStatUpButton( int buttonIndex )
 void CharPanel_MouseDown()
 {
 	Player& player = Players[CurrentPlayerIndex];
+	if( CharPanelMorePage ) return; // (thmod) no stat buttons on the More page
 	if( ButtonStatDown || !player.AvailableLvlPoints ){
 		return;
 	}

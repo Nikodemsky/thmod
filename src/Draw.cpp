@@ -7180,6 +7180,7 @@ void ClearAlphaOverlayUnderUI()
 	// DrawBox/DrawRect/DrawLetterPixel. Rects are screen coords (SetupPanelRect).
 	if (IsINVPanelVisible)         ClearAlphaOverlayScreenRect(InventoryPanelRect.Left, InventoryPanelRect.Top, InventoryPanelRect.Right, InventoryPanelRect.Down);
 	if (IsCHARPanelVisible)        ClearAlphaOverlayScreenRect(CharPanelRect.Left, CharPanelRect.Top, CharPanelRect.Right, CharPanelRect.Down);
+	if (CharPanelTabs_Visible())   ClearAlphaOverlayScreenRect(CharPanelTabsRect.Left, CharPanelTabsRect.Top, CharPanelTabsRect.Right, CharPanelTabsRect.Down); // (thmod)
 	if (IsSpellBookVisible)        ClearAlphaOverlayScreenRect(SpellBookRect.Left, SpellBookRect.Top, SpellBookRect.Right, SpellBookRect.Down);
 	if (IsQUESTPanelVisible)       ClearAlphaOverlayScreenRect(QuestPanelRect.Left, QuestPanelRect.Top, QuestPanelRect.Right, QuestPanelRect.Down);
 	if (IsStashPanelVisible)       ClearAlphaOverlayScreenRect(VisualStashPanel.Left, VisualStashPanel.Top, VisualStashPanel.Right, VisualStashPanel.Down);
@@ -7278,6 +7279,7 @@ void ClearTintUnderUI()
 	// ClearAlphaOverlayUnderUI uses). The playfield around them keeps its tint.
 	if (IsINVPanelVisible)         ClearTintScreenRect(InventoryPanelRect.Left, InventoryPanelRect.Top, InventoryPanelRect.Right, InventoryPanelRect.Down);
 	if (IsCHARPanelVisible)        ClearTintScreenRect(CharPanelRect.Left, CharPanelRect.Top, CharPanelRect.Right, CharPanelRect.Down);
+	if (CharPanelTabs_Visible())   ClearTintScreenRect(CharPanelTabsRect.Left, CharPanelTabsRect.Top, CharPanelTabsRect.Right, CharPanelTabsRect.Down); // (thmod)
 	if (IsSpellBookVisible)        ClearTintScreenRect(SpellBookRect.Left, SpellBookRect.Top, SpellBookRect.Right, SpellBookRect.Down);
 	if (IsQUESTPanelVisible)       ClearTintScreenRect(QuestPanelRect.Left, QuestPanelRect.Top, QuestPanelRect.Right, QuestPanelRect.Down);
 	if (IsStashPanelVisible)       ClearTintScreenRect(VisualStashPanel.Left, VisualStashPanel.Top, VisualStashPanel.Right, VisualStashPanel.Down);
@@ -7456,7 +7458,10 @@ void MainDrawFunc() // DrawAndBlit
 			if (IsINVPanelVisible) { DrawINVPanel(); HeatMask_AddUiRect( InventoryPanelRect ); }
 			else if( IsSpellBookVisible ){ DrawSpellBook(); HeatMask_AddUiRect( SpellBookRect ); }
 
-			if( IsCHARPanelVisible ){ CharPanel_Draw(); HeatMask_AddUiRect( CharPanelRect ); }
+			if( IsCHARPanelVisible ){
+				CharPanel_Draw(); HeatMask_AddUiRect( CharPanelRect );
+				if( CharPanelTabs_Visible() ){ CharPanelTabs_Draw(); HeatMask_AddUiRect( CharPanelTabsRect ); } // (thmod) page tabs
+			}
 			else if( IsQUESTPanelVisible ){ QuestPanel_Draw(); HeatMask_AddUiRect( QuestPanelRect ); }
 			else if( IsStashPanelVisible ){ StashPanel_Draw(); HeatMask_AddUiRect( VisualStashPanel ); }
 			else if( IsVisualTradePanelVisible ){ VisualTrade_Draw(); HeatMask_AddUiRect( VisualTradePanel ); }

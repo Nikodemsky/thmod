@@ -162,6 +162,7 @@ void UpdatePlayerFile()
 		WriteHotkeysDataToSave();
 		WriteAdditionalHeroDataToSave();
 		Transmute_WriteToSave();
+		CharStats_WriteToSave(); // (thmod) playtime / kill counters, own entry in the hero archive
 		CloseArchiveWrite(MaxCountOfPlayersInGame == 1, slotIndex);
 	}
 }
@@ -570,6 +571,7 @@ int __stdcall UiCreateHero( CharSaveInfo* newSaveInfo )
 	WriteAdditionalHeroDataToSave();
 
 	WriteHotkeysDataToSave();
+	CharStats_WriteEmptyToSave(); // (thmod) a new hero (also one re-created under the same name) starts from zero
 
 	InitCharData(player, *newSaveInfo, false);
 	CloseArchiveWrite(true, firstFreeSlot);
@@ -641,6 +643,7 @@ void LoadCurrentPlayerInfo()
 	ReadHotkeysInfoFromSave( archiveHandle );
 	ReadAdditionalHeroDataFromSave( archiveHandle );
 	Transmute_ReadFromSave( archiveHandle );
+	CharStats_ReadFromSave( archiveHandle, true ); // (thmod) hero selected: new session
 	
 	LoadPlayerInfo(heroData, CurrentPlayerIndex, false);
 	FreeMemZero(heroData);
@@ -766,6 +769,7 @@ void* __fastcall ReadSaveFile( char *fileName, uint *loadedSize, int loadAdditio
 		ReadHotkeysInfoFromSave( archiveHandle );
 		ReadAdditionalHeroDataFromSave( archiveHandle );
 		Transmute_ReadFromSave( archiveHandle );
+		CharStats_ReadFromSave( archiveHandle, false ); // (thmod) Load Game: kill counters only, playtime keeps running
 	}
 	HANDLE fileHandle;
 	if( !SFileOpenFileEx(archiveHandle, fileName, 0, &fileHandle) ){

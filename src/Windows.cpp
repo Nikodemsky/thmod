@@ -1,6 +1,10 @@
 ﻿#include "stdafx.h"
 #include "LinuxCompat.h" // (fixes) Wine / Proton
 
+// (thmod) optional archive with the submod's own assets (Data\CharMore.CEL, ...), see OpenMPQ calls below
+static HANDLE thmodMPQPtr = NULL;
+static char MpqPath_thmod[MAX_PATH];
+
 //----- (0041D2FF) -------------------------------------------------------- FileIO
 void __fastcall CloseGameArchives(bool exitGame)
 {
@@ -57,6 +61,10 @@ void __fastcall CloseGameArchives(bool exitGame)
 	if (th2devMPQPtr) { // dev mpq
 		SFileCloseArchive(th2devMPQPtr);
 		th2devMPQPtr = NULL;
+	}
+	if( thmodMPQPtr ){ // (thmod)
+		SFileCloseArchive(thmodMPQPtr);
+		thmodMPQPtr = NULL;
 	}
 	UiDestroy();
 	FreeAllSound();
@@ -304,6 +312,9 @@ void OpenGameArchives()
 	hellgfxMPQPtr	= OpenMPQ( MpqPath_7, "\\TH4data.mor",	InstallKey, 8500, 0 );
 	hellmfMPQPtr	= OpenMPQ( MpqPath_8, "\\THmusic.mor",	InstallKey, 8600, 0 );
 	th2devMPQPtr	= OpenMPQ( MpqPath_dev, "\\th2dev.mpq",	InstallKey, 8700, 0 );  // dev mpq
+	// (thmod) submod assets: above TH4data.mor (8500) and the dev mpq, below the localization packs (8900).
+	// Optional -- absent file => OpenMPQ no-ops and the features that need it fall back.
+	thmodMPQPtr		= OpenMPQ( MpqPath_thmod, "\\TH_ns_assets.mor", InstallKey, 8800, 0 );
 	//----- (th4) ----- Russian localization audio pack: higher priority than
 	// TH4data.mor (8500) so its sfx override the originals when language == RU.
 	if( GameLanguage == LANG_RU )

@@ -1356,7 +1356,7 @@ int __fastcall RollMonsterStunThreshold(const Monster& monster);//	MonsterStunTh
 int __fastcall MonsterOrientationToTarget( int monsterIndex	);//	Monster		
 void __fastcall KillMonsterByPlayer( uint monsterIndex, int playerIndex	);//	Monster		
 void __fastcall KillPlayerByPlayerEffect(int victimIndex, int killerIndex);
-void __fastcall CreditMonsterKill(int playerIndex);//	Monster	(th4) lifetime kill count
+void __fastcall CreditMonsterKill(int playerIndex, int monsterIndex);//	Monster	(th4) lifetime kill count (thmod: + monsterIndex for the kill types)
 void __fastcall MonsterKilledByPlayer(int monsterIndex, int playerIndex, bool sendMsg);//	Monster		
 void __fastcall KillDiabloEffect( int monsterIndex, int a1	);//	Monster		
 void __fastcall MonsterKillEffect( int monsterIndex, bool sendMsg	);//	Monster		
@@ -2659,6 +2659,28 @@ void __fastcall StashPanel_OpenShared(); // (thmod) shared stash
 bool SharedStashActive(); // (thmod)
 void SharedStash_Load(); // (thmod)
 void SharedStash_Save(); // (thmod)
+// (thmod) character panel More page and the character stats it shows (CharPanelMore.cpp)
+int GetStatSumLimit( int playerIndex, int clvl ); // thehell2.cpp
+int GetChainActivationRadius(); // Missile.cpp
+void __fastcall CalcBaseLifeMana(int playerIndex, int vitality, int magic, int clvl, int& life, int& mana); // Player.cpp
+void ToggleCharMorePanel();
+void CharPanelMore_Draw();
+void CharPanelMore_LoadGfx();
+void CharPanelMore_FreeGfx();
+void CharPanelTabs_Setup();
+bool CharPanelTabs_Visible();
+bool CursorIntoCharPanelTabs();
+void CharPanelTabs_Draw();
+void CharPanelTabs_Click();
+void CharPanelTabs_Tooltip();
+void CharPanel_PadCycle();
+void CharStats_Tick();
+void CharStats_AddKill( int monsterIndex );
+void CharStats_ActionStart( int playerIndex, int action );
+void CharStats_ActionEnd( int playerIndex, int action );
+void CharStats_WriteToSave();
+void CharStats_WriteEmptyToSave();
+void CharStats_ReadFromSave( HANDLE save, bool heroSelected );
 bool StashPanel_IsSharedStashSlot( int slotId ); // (thmod)
 bool StashPanel_IsLockedSlot( int slotId ); // (thmod)
 bool __fastcall CursorIntoStashButton(const DisplayObject& button);

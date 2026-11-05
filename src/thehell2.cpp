@@ -820,13 +820,12 @@ int __fastcall CalcCharBaseStatSum( Player& player )
 	return player.BaseStrength + player.BaseVitality + player.BaseDexterity + player.BaseMagic;
 }
 
-//----- (0070E500) --------------------------------------------------------
-int CannotIncreaseStat( int playerIndex )
+//----- (thmod) -----------------------------------------------------------
+// MSL: MORDOR'S STAT LIMITATION -- the maximum sum of base stats at character level clvl.
+// Extracted 1:1 from CannotIncreaseStat (LevelPointsToMax had an identical copy), so the
+// character panel can also show the cap at the maximum level.
+int GetStatSumLimit( int playerIndex, int clvl )
 {
-	Player& player = Players[playerIndex]; // MSL: MORDOR'S STAT LIMITATION
-	int statSum = CalcCharBaseStatSum(player);
-	int clvl = player.CharLevel;
-
 	//-------------------------------- NEW #MSL ----------------------------------------------------
 
 	int blueblood_limit_raise = HasTrait(playerIndex, TraitId::BlueBlood) ? 40 : 0; 
@@ -877,6 +876,15 @@ int CannotIncreaseStat( int playerIndex )
 	statSumLimit += 4 * PerkValue(SYNERGY_OSTENTATION, playerIndex); 
 	if (GameMode == GM_CLASSIC) { statSumLimit = 460; }
 	if (Players[playerIndex].gameChanger & BIT(GC_27_TERMINATOR)) { statSumLimit = 2'810; }
+	return statSumLimit;
+}
+
+//----- (0070E500) --------------------------------------------------------
+int CannotIncreaseStat( int playerIndex )
+{
+	Player& player = Players[playerIndex]; // MSL: MORDOR'S STAT LIMITATION
+	int statSum = CalcCharBaseStatSum(player);
+	int statSumLimit = GetStatSumLimit( playerIndex, player.CharLevel ); // (thmod) extracted, see above
 	if (statSum < statSumLimit) {
 		return 0;
 	}
@@ -3844,6 +3852,7 @@ void CheckPanelClick()
 	PanelClick = CursorInMainPanel()
 	 || IsQUESTPanelVisible       && CursorIntoDisplayObject(QuestPanelRect)
 	 || IsCHARPanelVisible        && CursorIntoDisplayObject(CharPanelRect)
+	 || CursorIntoCharPanelTabs() // (thmod)
 	 || IsINVPanelVisible         && CursorIntoDisplayObject(InventoryPanelRect)
 	 || IsSpellBookVisible        && CursorIntoDisplayObject(SpellBookRect)
 	 || IsStashPanelVisible       && CursorIntoDisplayObject(VisualStashPanel)

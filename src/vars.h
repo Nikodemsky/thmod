@@ -695,6 +695,8 @@ extern char IsAmbientEnabled;//
 extern char IsSoundEnable;//	
 extern bool DuplicateSounds;
 extern bool SharedStash; // (thmod) shared stash for single player Easy/Normal mode heroes
+extern bool CharPanelMorePage; // (thmod) the character panel shows the More page instead of the stats
+extern DisplayObject CharPanelTabsRect; // (thmod) the tabs above the character panel (both)
 extern bool LimitCpuCore;
 extern bool ClassicInMainMenu;
 extern bool OutbreakInMainMenu;
