@@ -33,6 +33,9 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 > Disabled by default, enable by adding:
 `set ShowBattleMarkers on`
 
+06. Custom Statistics / Caps panel
+* Available from character panel, with tabs or by hotkey "/"
+
 ### Mechanics:
 
 01. New GC for Hydramancer - Inquisitor's favour; converts Acid element to holy one for hydras
@@ -69,16 +72,18 @@ _________________
 
 ### TO DO's
 
+- [ ] Come up with proper title for the submod
 - [ ] Show current debuffs as icons or text infos in UI
-- [x] ~~Show current statcap~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2)
-- [ ] Further balance for new hydramancer's synergies (chances and maybe requirements)
+- [x] ~~Show current statcap~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
+- [x] ~~Further balance for new hydramancer's synergies~~ Mostly done.
 - [ ] Further works on Siegemaster (as of now, it's just baseline)
 - [ ] Rebalance paladin (mostly hammers)
 - [ ] Custom rule for normal mode, allowing to save everywhere (probably same implementation as in Antigrind submod, via GC)
 - [ ] Allow uberbosses in SP (probably also through GC)
-- [x] ~~Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2)
+- [x] ~~Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
 - [ ] Big maybe: custom mechanics for Super Mutant GC
-- [x] ~~Big maybe: new, custom tab with additional info, or stricly technical info for the current character~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2)
+- [ ] Big maybe: Achievements
+- [x] ~~Big maybe: new, custom tab with additional info, or stricly technical info for the current character~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
 - [ ] Small maybe: Custom greetings for npc's
 - [ ] Maybe: Some custom works on Warlord
 
