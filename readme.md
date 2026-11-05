@@ -70,13 +70,15 @@ _________________
 ### TO DO's
 
 - [ ] Show current debuffs as icons or text infos in UI
+- [x] ~~Show current statcap~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2)
 - [ ] Further balance for new hydramancer's synergies (chances and maybe requirements)
 - [ ] Further works on Siegemaster (as of now, it's just baseline)
 - [ ] Rebalance paladin (mostly hammers)
 - [ ] Custom rule for normal mode, allowing to save everywhere (probably same implementation as in Antigrind submod, via GC)
-- [ ] Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)
+- [ ] Allow uberbosses in SP (probably also through GC)
+- [x] ~~Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2)
 - [ ] Big maybe: custom mechanics for Super Mutant GC
-- [ ] Big maybe: new, custom tab with additional info, or stricly technical info for the current character
+- [x] ~~Big maybe: new, custom tab with additional info, or stricly technical info for the current character~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2)
 - [ ] Small maybe: Custom greetings for npc's
 - [ ] Maybe: Some custom works on Warlord
 
