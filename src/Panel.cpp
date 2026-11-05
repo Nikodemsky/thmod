@@ -1102,6 +1102,7 @@ void MayBeViewInit()
 		FreeMemZero(colorTable);
 	}
 	Data_CharCEL = (char*)LoadFile("Data\\Char.CEL");
+	CharPanelMore_LoadGfx(); // (thmod) More page background (TH_ns_assets.mor, optional)
 	InfoWindow_Init();
 	Data_HotkeyIconsCEL = (char*)LoadFile("Data\\HotkeyIcons.CEL");
 	Data_SpelIconCEL = (char*)LoadFile(GameMode == GM_CLASSIC ? "Data\\SpelIconOL.CEL" : "Data\\SpelIcon.CEL");
@@ -1228,6 +1229,7 @@ void SetupDisplayObjects()
 		, QuestPanelRect.Heigth - questPanelTextAreaDoublePadding);
 
 	SetupPanelRect(CharPanelRect, LeftPanel, GUI_CharPanelWidth, GUI_CharPanelHeight);
+	CharPanelTabs_Setup(); // (thmod) Character / Cap/Stats tabs above the panel
 
 	SetupDisplayObject(CharPanelCurStrRect, CharPanelRect.Left + 136, CharPanelRect.Top + 137, 44, 26);
 	SetupDisplayObject(CharPanelCurMagRect, CharPanelRect.Left + 136, CharPanelRect.Top + 165, 44, 26);
@@ -1590,6 +1592,13 @@ void PopUpHelpOnButton()
 //----- (th2) -------------------------------------------------------------
 void ToggleCharPanel()
 {
+	// (thmod) C on the More page goes back to the stats page instead of closing the panel
+	if( IsCHARPanelVisible && CharPanelMorePage ){
+		CharPanelMorePage = false;
+		PlayGlobalSound(75);
+		return;
+	}
+	CharPanelMorePage = false;
 	// Conflicts with
 	{
 		IsQUESTPanelVisible = false;
@@ -1782,6 +1791,7 @@ void FreePanels()
 	FreePanelButtons();
 	FreeMemZero(FontSpriteSmall);
 	FreeMemZero(Data_CharCEL);
+	CharPanelMore_FreeGfx(); // (thmod)
 	FreeMemZero(Data_SpelIconCEL_2);
 	FreeMemZero(Data_SpelIconCEL);
 	FreeMemZero(Data_HotkeyIconsCEL);

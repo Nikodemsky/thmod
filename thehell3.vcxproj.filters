@@ -393,6 +393,9 @@
     <ClCompile Include="src\CharPanel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\CharPanelMore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\InventoryPanel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

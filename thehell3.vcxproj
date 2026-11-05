@@ -173,6 +173,7 @@
     <ClCompile Include="src\BaseQuests.cpp" />
     <ClCompile Include="src\CastSprites.cpp" />
     <ClCompile Include="src\CharPanel.cpp" />
+    <ClCompile Include="src\CharPanelMore.cpp" />
     <ClCompile Include="src\CharSlots.cpp" />
     <ClCompile Include="src\CodeSave.cpp" />
     <ClCompile Include="src\Config.cpp" />

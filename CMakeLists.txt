@@ -94,6 +94,7 @@ add_executable(th2
         src/VisualTrade.cpp
         src/Tooltip.cpp
         src/CharPanel.cpp
+        src/CharPanelMore.cpp
         src/InventoryPanel.cpp
         src/SpellPanel.cpp
         src/UniqueSets.cpp

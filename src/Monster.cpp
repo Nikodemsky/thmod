@@ -6060,13 +6060,14 @@ void __fastcall KillMonsterByPlayer(uint monsterIndex, int playerIndex)
 // (th4) Credit one kill to a player's lifetime counter.
 // SP only, and never in Coliseum (PvP-only mode -- those aren't "monsters killed").
 // Callers must already have verified the monster wasn't dead, so each death counts once.
-void __fastcall CreditMonsterKill(int playerIndex)
+void __fastcall CreditMonsterKill(int playerIndex, int monsterIndex)
 {
 	if( MaxCountOfPlayersInGame != 1 ) return;		// single player feature
 	if( GameMode == GM_COLISEUM ) return;			// excluded mode
 	if( playerIndex < 0 || playerIndex >= PlayersMax_4 ) return;
 	uint& kills = Players[playerIndex].totalKills;
 	if( kills < UINT_MAX ) ++kills;					// saturate rather than wrap
+	if( playerIndex == CurrentPlayerIndex ) CharStats_AddKill( monsterIndex ); // (thmod) bosses / champions / grunts
 }
 
 //----- (0043D109) --------------------------------------------------------
@@ -6079,7 +6080,7 @@ void __fastcall MonsterKilledByPlayer(int monsterIndex, int playerIndex, bool se
 	// (th4) lifetime kill count. Mirror the XP-credit rule below: indices under
 	// SummonMonsters_Count are the players' own summons, so their deaths aren't kills.
 	if( monsterIndex >= SummonMonsters_Count ){
-		CreditMonsterKill( playerIndex );
+		CreditMonsterKill( playerIndex, monsterIndex );
 	}
 	MonsterSprite& sprite = *monster.SpritePtr;	
 	if( playerIndex >= 0 ){
@@ -7921,9 +7922,9 @@ void __fastcall KillMonsterByMonster(int attackerIndex, int targetIndex)
 	// SummonMonsters_Count are the players' own summons dying -- also not a kill.
 	if( targetIndex >= SummonMonsters_Count ){
 		if( attackerIndex == M1_TRAP ){
-			CreditMonsterKill( CurrentPlayerIndex );
+			CreditMonsterKill( CurrentPlayerIndex, targetIndex );
 		}else if( attackerIndex >= 0 && attackerIndex < SummonMonsters_Count ){
-			CreditMonsterKill( attackerIndex / SummonMonstersPerPlayer_Count );
+			CreditMonsterKill( attackerIndex / SummonMonstersPerPlayer_Count, targetIndex );
 		}
 	}
 

@@ -593,7 +593,12 @@ LABEL_44:
         if( IsSpellBookVisible && CursorIntoDisplayObject(SpellBookRect) ){
             return;
         }
+        if( CursorIntoCharPanelTabs() ){ // (thmod) Character / Cap/Stats tabs: cover the world under them
+            CharPanelTabs_Tooltip();
+            return;
+        }
         if( IsCHARPanelVisible && CursorIntoDisplayObject(CharPanelRect) ){ // TODO: extract to func, and combine with CalcCharParams / PvM_Melee / PvM_Ranged
+            if( CharPanelMorePage ) return; // (thmod) More page: no stat tooltips, but the panel still covers the world under it
             auto& player = Players[CurrentPlayerIndex];
             if( player.AvailableLvlPoints > 0 ){
                 const PlayerStat maxStat = GetPlayerMaxStat( CurrentPlayerIndex );
@@ -4083,6 +4088,10 @@ int __stdcall GameWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		StopSpeech();
 		return 0;
 	}
+	if( CursorIntoCharPanelTabs() ){ // (thmod) Character / Cap/Stats tabs
+		CharPanelTabs_Click();
+		return 0;
+	}
 	if( IsCHARPanelVisible && CursorIntoDisplayObject(CharPanelRect) ){
         CharPanel_MouseDown();
 		return 0;
@@ -4563,6 +4572,7 @@ bool __fastcall SpellCasting()
 		// (rt) For other spells, don't cast if:
 		if (CursorInMainPanel() // (rt) The cursor is over the main panel
 			|| (IsCHARPanelVisible && CursorIntoDisplayObject(CharPanelRect)) // (rt) The cursor is over the character panel
+			|| CursorIntoCharPanelTabs() // (thmod) ... or its tabs
 			|| (IsINVPanelVisible && CursorIntoDisplayObject(InventoryPanelRect)) // (rt) The cursor is over the inventory
 			|| (IsPerksPanelVisible && CursorIntoDisplayObject(PerksPanelPos)) // (rt) The cursor is over the perks panel
 			|| (IsQUESTPanelVisible && CursorIntoDisplayObject(QuestPanelRect)) // (rt) The cursor is over the quests panel
@@ -5443,6 +5453,7 @@ void __fastcall KeyPressHandler(WPARAM key)
 		int beltItemNumberToUse = 0;
 			switch (key) {
 			case VK_67_C_KEY: if (!CurrentDialogIndex) { ToggleCharPanel(); } break;
+			case VK_OEM_2 or VK_DIVIDE: if (!CurrentDialogIndex) { ToggleCharMorePanel(); } break; // (thmod) "/" -- character panel, More page
 			case VK_73_I_KEY: if (!CurrentDialogIndex) { ToggleInventoryPanel(); } break;
 			case VK_86_V_KEY: ChangeAltWeaponPairToNext(!IsINVPanelVisible); break;
 			case VK_189_OEM_MINUS_KEY or VK_SUBTRACT: if (AutomapMode) { ZoomAutomapMinus(); } break; // shift + "-"
@@ -6151,6 +6162,7 @@ void GameLogic()
 				}
 				#endif
 				WorldFrameIndex++;
+				CharStats_Tick(); // (thmod) playtime (not counted while paused or in the SP game menu)
 				ProcessPlayers();
 			}
 			DamageMonstersByAuras(); // There is a little bit righter place for this, so you need to modify FPS dependency in this, it calls 20 times per second

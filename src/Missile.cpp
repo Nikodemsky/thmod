@@ -2292,8 +2292,10 @@ CLASSIC_DAMAGE_MODIFY_SKIP_R:
 	return 1;
 }
 
-//----- (00713270) --------------------------------------------------------
-void __fastcall MonsterChainActivation( int monsterIndex )// #chain activation
+//----- (thmod) -----------------------------------------------------------
+// Monster chain activation radius for the current player on the current level.
+// Extracted 1:1 from MonsterChainActivation, so the character panel can show it.
+int GetChainActivationRadius()
 {
 	Player& player = Players[CurrentPlayerIndex];
 	int activateRadius;
@@ -2341,6 +2343,13 @@ void __fastcall MonsterChainActivation( int monsterIndex )// #chain activation
 	if (player.gameChanger & BIT(GC_28_SUPERMUTANT)) { activateRadius += 1; }
 	if (GameMode == GM_CLASSIC) activateRadius = 2; // maybe should be just 1 ?
 	LimitToMin(activateRadius, 2);
+	return activateRadius;
+}
+
+//----- (00713270) --------------------------------------------------------
+void __fastcall MonsterChainActivation( int monsterIndex )// #chain activation
+{
+	const int activateRadius = GetChainActivationRadius(); // (thmod) extracted, see above
 	MonsterGreetings( monsterIndex );
 	Monster& monster = Monsters[monsterIndex];
 	int maxCountToActivate = 8;

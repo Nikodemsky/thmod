@@ -2681,58 +2681,8 @@ int __fastcall LevelPointsToMax(int playerIndex)
 	int curStatsSum = player.BaseStrength + player.BaseDexterity + player.BaseMagic + player.BaseVitality;
 	int pointsToMax = maxStatsSum - curStatsSum;
 	int statSum = CalcCharBaseStatSum( player );
-	int clvl = player.CharLevel;
-	int maxStatSumCap;
-
-	// #msl: mordor's stat limitation
-	int blueblood_limit_raise = HasTrait(playerIndex, TraitId::BlueBlood) ? 40 : 0;
-	int gifted_limit = HasTrait(playerIndex, TraitId::Gifted) ? 100 : 0;
-	int giant_limit = HasTrait(playerIndex, TraitId::Giant) ? 100 : 0;
-	int paladin_limit = HasTrait(playerIndex, TraitId::Paladin) ? (200 + PerkValue(SYNERGY_THAUMATURGY, playerIndex)) : 0;
-	int nightkin_limit = 0; 
-	if (MaxCountOfPlayersInGame == 1 && (player.gameChanger & BIT(GC_9_NIGHT_KIN))) { 
-		nightkin_limit = 140;
-	}
-	int mutie_limit = 0;
-	if (MaxCountOfPlayersInGame == 1 && (player.gameChanger & BIT(GC_28_SUPERMUTANT))) {
-		mutie_limit = 200;
-	}
-	int oldfashioned = HasTrait(playerIndex, TraitId::OldFashioned) ? 40 : 0;
-	int leper = HasTrait(playerIndex, TraitId::Leper) ? 150 : 0;
-	int lithe = HasTrait(playerIndex, TraitId::LitheBuild) ? 100 : 0;
-	int extra_mode_boost = 0;
-	if (is(GameMode, GM_IRONMAN, GM_SPEEDRUN, GM_NIGHTMARE, GM_OUTBREAK)) { 
-		extra_mode_boost = clvl / 2 + 50;
-	}
-	maxStatSumCap = (10 * clvl) 
-		+ extra_mode_boost
-		+ 90
-		+ (2 * clvl / 3)
-		+ blueblood_limit_raise
-		+ gifted_limit
-		+ giant_limit
-		+ paladin_limit
-		+ nightkin_limit
-		+ mutie_limit
-		+ oldfashioned
-		+ leper
-		+ lithe;
-	if (HasTrait(playerIndex, TraitId::BendTheRules)) {
-		if (HasTrait(playerIndex, TraitId::Paladin)) {
-			if (maxStatSumCap > (1400 + paladin_limit)) { 
-				maxStatSumCap = 1400 + paladin_limit; 
-			}
-		}
-		else {
-			if (maxStatSumCap > 1400) { 
-				maxStatSumCap = 1400; 
-			}
-		}
-		maxStatSumCap += PerkValue(PERK_RAISE_THE_BAR, playerIndex); 
-	}
-	maxStatSumCap += 4 * PerkValue(SYNERGY_OSTENTATION, playerIndex); 
-	if (GameMode == GM_CLASSIC) { maxStatSumCap = 460; }
-	if(player.gameChanger& BIT(GC_27_TERMINATOR)){ maxStatSumCap = 2'810; }
+	// #msl: mordor's stat limitation (thmod: shared with CannotIncreaseStat, see GetStatSumLimit)
+	int maxStatSumCap = GetStatSumLimit( playerIndex, player.CharLevel );
 	int pointsToMaxCap = maxStatSumCap - statSum;
 	if (pointsToMax > pointsToMaxCap) {
 		pointsToMax = pointsToMaxCap;
@@ -3721,6 +3671,7 @@ void __fastcall StartAttack(int playerIndex, int orientationToTarget)
 	}
 	NewPlayerAnimation(playerIndex, player.attackAnimationsPointers[orientationToTarget], player.AttackAnimationFrameCount, GetAnimationDelay(playerIndex), player.AnimPitchAttack);
 	player.CurAction = PCA_4_ATTACK;
+	CharStats_ActionStart( playerIndex, PCA_4_ATTACK ); // (thmod) attack frames measurement
 	FixPlayerLocation(playerIndex, orientationToTarget);
 	SetPlayerOld(playerIndex);
 }
@@ -3747,6 +3698,7 @@ void __fastcall StartRangeAttack(int playerIndex, int orientationToTarget, int t
 	// (rt) with 3, for example, three frames are skipped and one executed, 25% speed
 	NewPlayerAnimation(playerIndex, player.attackAnimationsPointers[orientationToTarget], player.AttackAnimationFrameCount, GetAnimationDelay(playerIndex), player.AnimPitchAttack);
 	player.CurAction = PCA_5_RANGE_ATTACK;
+	CharStats_ActionStart( playerIndex, PCA_5_RANGE_ATTACK ); // (thmod) attack frames measurement
 	FixPlayerLocation(playerIndex, orientationToTarget);
 	SetPlayerOld(playerIndex);
 	player.CursorRow = targetRow;
@@ -3909,6 +3861,7 @@ void __fastcall StartSpell(int playerIndex, int orientationToTarget, int targetR
 	}
 	PlayLocalSound(Spells[player.spellIndex].SoundType, player.Row, player.Col);
 	player.CurAction = PCA_9_SPELL; //(rt) dragon: the casting mode is set
+	CharStats_ActionStart( playerIndex, PCA_9_SPELL ); // (thmod) casting frames measurement
 	FixPlayerLocation(playerIndex, orientationToTarget);
 	SetPlayerOld(playerIndex);
 	player.CursorRow = targetRow;
@@ -7717,6 +7670,7 @@ void ProcessPlayers()
 						}
 					}
 				}
+				const int actionBeforeDo = player.CurAction; // (thmod) attack / casting frames measurement
 				switch( player.CurAction ){
 				case PCA_0_STAND:			moreAction = PM_DoNothing		(playerIndex);	break;
 				case PCA_1_WALK_UP:			moreAction = PM_DoWalkUp		(playerIndex);	break;
@@ -7731,6 +7685,7 @@ void ProcessPlayers()
 				case PCA_10_NEW_LEVEL:		moreAction = PM_DoNothing		(playerIndex);	break;
 				default: break;
 				}
+				if( moreAction ) CharStats_ActionEnd( playerIndex, actionBeforeDo ); // (thmod) action finished
 				// (rt) removed the "classic" ! DungeonLevel from the check for now, since I added repeat rbutton to easy click
 				if( ( ! EasyClick /*|| ! DungeonLevel*/ ) && playerIndex == CurrentPlayerIndex && moreAction ){
 					Repeat_Mouse_LButtonDown();
@@ -7764,6 +7719,160 @@ void ProcessPlayers()
 }
 
 enum { Limit_Stat = 1000*4, Limit_Hp_Mana = 5000*64*4 }; 
+//----- (thmod) -----------------------------------------------------------
+// Base life and mana (no items, << 6) of the player for given base Vitality, base Magic and level.
+// Extracted 1:1 from LimitPlayerParams, so the character panel can show the values at the stat caps
+// and the maximum level.
+void __fastcall CalcBaseLifeMana(int playerIndex, int vitality, int magic, int clvl, int& life, int& mana)
+{
+	Player& player = Players[playerIndex];
+	// a class without its own formula below keeps the values passed in (as before the extraction)
+	// character base life & mana formula, by class (# player life, player hit points, player HP)
+	if (player.fullClassId == PFC_THRAEX) { // with 'blood for blood' trait, no level-up life gains
+		life = (3 * vitality + (HasTrait(playerIndex, TraitId::BloodForBlood) ? 2 : (2 * clvl)) + 18) << 6; // 3*bVit +2*clvl + 18
+		mana = (magic + clvl - 1) << 6; // bMAG + clv - 1
+	}
+	else if (player.fullClassId == PFC_WARRIOR || player.fullClassId == PFC_INQUISITOR || player.fullClassId == PFC_TEMPLAR 
+		|| player.fullClassId == PFC_DIMACHAERUS || player.fullClassId == PFC_SECUTOR || player.fullClassId == PFC_GLADIATRIX) {
+		if (HasTrait(playerIndex, TraitId::Paladin)) {
+			life = (vitality / 2 + clvl + 19) << 6; // bVit +clvl + 9
+			mana = ((magic * 2) + (2 * clvl) + 38) << 6; // 2*bMAG + 2*clv + 38
+		}
+		else if (HasTrait(playerIndex, TraitId::Ranger)) {
+			life = (2 * vitality + 2 * clvl + 18) << 6; // 2*bVit +2*clvl + 18
+			mana = ((3 * magic / 2) + 2 * clvl + 8) << 6; // 1,5*bMAG + 2*clv + 8
+		}
+		else if (GameMode == GM_CLASSIC){
+			life = (2 * vitality + 2 * clvl + 18) << 6; // 2*bVit +2*clvl + 18
+			mana = (magic + clvl - 1) << 6; // 1*bMAG + 2*clv + 8
+		}
+		else {
+			life = (3 * vitality + 2 * clvl + 18) << 6; // 3*bVit +2*clvl + 18
+			mana = (magic + clvl - 1) << 6; // bMAG + clv - 1
+		}
+	}
+	else if (player.fullClassId == PFC_MURMILLO) {
+		life = (3 * vitality + (vitality / 2) + 3 * clvl + 2) << 6; // 3,5*bVit + 3*clvl + 2
+		mana = (magic + (magic / 2) + clvl - 1) << 6; // (bMAG / 2) + clvl -1
+	}
+	else if (player.fullClassId == PFC_ARCHER || player.fullClassId == PFC_SCOUT || player.fullClassId == PFC_SHARPSHOOTER) {
+		if (GameMode == GM_CLASSIC) {
+			life = (vitality + 2 * clvl + 23) << 6; // 2*bVit +2*clvl + 18
+			mana = (magic + 2 * clvl + 5) << 6; // 1*bMAG + 2*clv + 8
+		}
+		else {
+			life = (2 * vitality + 2 * clvl + 8) << 6; // 2*bVIT + 2*clvl + 8
+			mana = (magic + 2 * clvl + 3) << 6; // bMAG + 2 * clvl + 3
+		}
+	}
+	else if (player.fullClassId == PFC_BOMBARDIER) {
+		life = (vitality * 3 / 2 + clvl + 22) << 6; // 1,5 * bVIT + clvl + 22
+		mana = (magic + magic / 2 + clvl - 3) << 6; // bMAG * 1,5 + clvl - 3
+	}
+	else if (player.fullClassId == PFC_TRAPPER) {
+		life = ((vitality * 7 / 4) + (HasTrait(playerIndex, TraitId::Engineer) ? 0 : (clvl * 3 / 2)) + 24) << 6; // (1,75 * bVIT) + (1,5 * clvl) + 24
+		mana = ((magic * 7 / 4) + (HasTrait(playerIndex, TraitId::Engineer) ? 0 : (clvl * 3 / 2)) - 11) << 6; // (bMAG * 1,75) + (1,5 * clvl) + 4
+	}
+	else if (player.fullClassId == PFC_MAGE || player.fullClassId == PFC_ELEMENTALIST || player.fullClassId == PFC_WARLOCK) {
+		if (GameMode == GM_CLASSIC) {
+			life = (vitality + clvl + 9) << 6; // 2*bVit +2*clvl + 18
+			mana = (2 * magic + 2 * clvl - 2) << 6; // 1*bMAG + 2*clv + 8
+		}
+		else if (HasTrait(playerIndex, TraitId::Mamluk)) {
+			life = (7 * vitality / 2 + clvl + 14) << 6;	// bVIT*3,5 + clv + 19 (85 on start by default)
+			mana = (magic + clvl + 4) << 6; // bMAG + clvl + 4
+		}
+		else if (HasTrait(playerIndex, TraitId::Psion) /*&& HasTrait(playerIndex, TraitId::GrimDeal)*/) {
+			life = (vitality + clvl + 9) << 6;	// bVIT + clv + 9
+			mana = (magic + clvl + 4) << 6; // bMAG + clvl + 4
+		}
+		else {
+			life = (vitality + clvl + 9) << 6;	// bVIT + clv + 9
+			mana = (2 * magic + 2 * clvl + 3) << 6; // 2 * bMAG + 2*clvl + 3
+		}
+	}
+	else if (player.fullClassId == PFC_DEMONOLOGIST || player.fullClassId == PFC_NECROMANCER) {
+		life = (vitality + 2 * clvl + 8) << 6;	// bVIT + 2*clv + 8
+		mana = ((magic * 5 / 4) + clvl + 22) << 6; // 1,25 * bMAG + clvl + 22
+	}
+	else if (player.fullClassId == PFC_BEASTMASTER) {
+		life = (2 * vitality + clvl / 2 - 5) << 6;	// 2*bVIT + clvl/2 - 5
+		mana = ((magic * 5 / 4) + clvl + 22) << 6; // 1,25 * bMAG + clvl + 22
+	}
+	else if (player.fullClassId == PFC_MONK || player.fullClassId == PFC_SHINOBI) {
+		life = ((5 * vitality / 2) + (2 * clvl + 13)) << 6;	// 2,5*bVIT + 2*clv + 13
+		mana = ((magic * 3 / 2) + clvl + 2) << 6; // 1,5 * bMAG + clvl + 2
+	}
+	else if (player.fullClassId == PFC_KENSEI) {
+		life = (3 * vitality + (2 * clvl + 13)) << 6;	// 3*bVIT + 2*clv + 13
+		mana = (3 * magic / 2 + clvl + 2) << 6; // 1,5 * bMAG + clvl + 2
+	}
+	else if (player.fullClassId == PFC_SHUGOKI) {
+		life = (3 * vitality + (vitality / 2) + 3 * clvl + 12) << 6; // 3,5*bVit + 3*clvl + 12
+		mana = (magic + clvl + 4) << 6; // bMAG + clvl + 4
+	}
+	else if (player.fullClassId == PFC_ROGUE) {
+		if (HasTrait(playerIndex, TraitId::BigFrame)) {
+			life = (3 * vitality + (5 * clvl / 2) + 22) << 6;	// 3*bVIT + 2,5*clv + 22
+		}
+		else {
+			life = (2 * vitality + 2 * clvl + 18) << 6;	// 2*bVIT + 2*clv + 18
+		}
+		mana = (2 * magic + 2 * clvl + 18) << 6; // 2 * bMAG + 2*clvl + 18
+	}
+	else if (player.fullClassId == PFC_ASSASSIN) {
+		life = (2 * vitality + 2 * clvl + 18) << 6;	// 2*bVIT + 2*clv + 18
+		if (HasTrait(playerIndex, TraitId::Black_Witchery)) {
+			mana = (2 * magic + 3 * clvl + 27) << 6; // 2 * bMAG + 3*clvl + 27
+		}
+		else {
+			mana = ((3 * magic / 2) + (3 * clvl / 2) - 6) << 6; // 1,5 * bMAG + 1,5*clvl - 6
+		}
+	}
+	else if (player.fullClassId == PFC_IRON_MAIDEN) {
+		life = (3 * vitality + (clvl / 5) + 25) << 6;	// 3* bVIT + clvl/5 + 25
+		mana = (magic + clvl) << 6; // bMAG + clvl
+	}
+	else if (player.fullClassId == PFC_SAVAGE || player.fullClassId == PFC_BERSERKER || player.fullClassId == PFC_GUARDIAN) {
+	if (player.gameChanger & BIT(GC_27_TERMINATOR)) {		
+		life = (2'000) << 6;
+		mana = 50 << 6;
+	}
+	else if (player.gameChanger & BIT(GC_28_SUPERMUTANT)) {
+		life = (6 * vitality + 5 * clvl + 20) << 6;	// 6*bVIT + 5*clv + 20
+		mana = (magic / 2 + clvl / 2 + 5) << 6;		//  bMAG/2 + clvl/2 + 5
+	}
+	else if (player.gameChanger & BIT(GC_29_ENCLAVE_SOLDIER)) {
+		life = (5 * vitality / 2 + 2 * clvl + 8) << 6;	// 2,5 *bVIT + 2*clv + 8
+		mana = (magic + clvl + 4) << 6;		//  bMAG + clvl + 4
+	}
+	else {
+		life = (7 * vitality / 2 + 2 * clvl + 16) << 6;	// 3,5*bVIT + 2*clv + 16
+		mana = (3 * magic / 2 + 2 * clvl + 8) << 6; // 1,5 * bMAG + 2*clvl + 8
+	}
+}
+	else if (player.fullClassId == PFC_EXECUTIONER) {
+		if (player.gameChanger & BIT(GC_9_NIGHT_KIN)) {
+			life = (5 * vitality + 5 * clvl) << 6;	// 5*bVIT + 5*clv - 8
+			mana = (5 * magic + 5 * clvl) << 6; // 5*bMAG + 5*clvl 
+		}
+		else{ // default exec
+			life = (9 * vitality / 2 + 3 * clvl) << 6;	// 4,5*bVIT + 3*clv
+			mana = (magic + clvl / 2) << 6; // bMAG + clvl/2 
+		}
+	}
+	else if (player.fullClassId == PFC_DRUID) {
+		life = (3 * vitality + 3 * clvl + 7) << 6;
+		mana = (2 * magic + 2 * clvl + 13) << 6;
+	}
+	if (HasTrait(playerIndex, TraitId::FearTheReaper)) {
+		life = 50 << 6;
+	}
+	if (HasTrait(playerIndex, TraitId::Giant)) {
+		life += vitality << 6;
+	}
+}
+
 //----- (0045DD9E) --------------------------------------------------------
 void __fastcall LimitPlayerParams(int playerIndex)
 {
@@ -7890,150 +7999,8 @@ void __fastcall LimitPlayerParams(int playerIndex)
 		if( ! statDecreased ) break;
 	}
 
-	// character base life & mana formula, by class (# player life, player hit points, player HP)
-	if (player.fullClassId == PFC_THRAEX) { // with 'blood for blood' trait, no level-up life gains
-		player.MaxBaseLife = (3 * player.BaseVitality + (HasTrait(playerIndex, TraitId::BloodForBlood) ? 2 : (2 * player.CharLevel)) + 18) << 6; // 3*bVit +2*clvl + 18
-		player.MaxBaseMana = (player.BaseMagic + player.CharLevel - 1) << 6; // bMAG + clv - 1
-	}
-	else if (player.fullClassId == PFC_WARRIOR || player.fullClassId == PFC_INQUISITOR || player.fullClassId == PFC_TEMPLAR 
-		|| player.fullClassId == PFC_DIMACHAERUS || player.fullClassId == PFC_SECUTOR || player.fullClassId == PFC_GLADIATRIX) {
-		if (HasTrait(playerIndex, TraitId::Paladin)) {
-			player.MaxBaseLife = (player.BaseVitality / 2 + player.CharLevel + 19) << 6; // bVit +clvl + 9
-			player.MaxBaseMana = ((player.BaseMagic * 2) + (2 * player.CharLevel) + 38) << 6; // 2*bMAG + 2*clv + 38
-		}
-		else if (HasTrait(playerIndex, TraitId::Ranger)) {
-			player.MaxBaseLife = (2 * player.BaseVitality + 2 * player.CharLevel + 18) << 6; // 2*bVit +2*clvl + 18
-			player.MaxBaseMana = ((3 * player.BaseMagic / 2) + 2 * player.CharLevel + 8) << 6; // 1,5*bMAG + 2*clv + 8
-		}
-		else if (GameMode == GM_CLASSIC){
-			player.MaxBaseLife = (2 * player.BaseVitality + 2 * player.CharLevel + 18) << 6; // 2*bVit +2*clvl + 18
-			player.MaxBaseMana = (player.BaseMagic + player.CharLevel - 1) << 6; // 1*bMAG + 2*clv + 8
-		}
-		else {
-			player.MaxBaseLife = (3 * player.BaseVitality + 2 * player.CharLevel + 18) << 6; // 3*bVit +2*clvl + 18
-			player.MaxBaseMana = (player.BaseMagic + player.CharLevel - 1) << 6; // bMAG + clv - 1
-		}
-	}
-	else if (player.fullClassId == PFC_MURMILLO) {
-		player.MaxBaseLife = (3 * player.BaseVitality + (player.BaseVitality / 2) + 3 * player.CharLevel + 2) << 6; // 3,5*bVit + 3*clvl + 2
-		player.MaxBaseMana = (player.BaseMagic + (player.BaseMagic / 2) + player.CharLevel - 1) << 6; // (bMAG / 2) + clvl -1
-	}
-	else if (player.fullClassId == PFC_ARCHER || player.fullClassId == PFC_SCOUT || player.fullClassId == PFC_SHARPSHOOTER) {
-		if (GameMode == GM_CLASSIC) {
-			player.MaxBaseLife = (player.BaseVitality + 2 * player.CharLevel + 23) << 6; // 2*bVit +2*clvl + 18
-			player.MaxBaseMana = (player.BaseMagic + 2 * player.CharLevel + 5) << 6; // 1*bMAG + 2*clv + 8
-		}
-		else {
-			player.MaxBaseLife = (2 * player.BaseVitality + 2 * player.CharLevel + 8) << 6; // 2*bVIT + 2*clvl + 8
-			player.MaxBaseMana = (player.BaseMagic + 2 * player.CharLevel + 3) << 6; // bMAG + 2 * clvl + 3
-		}
-	}
-	else if (player.fullClassId == PFC_BOMBARDIER) {
-		player.MaxBaseLife = (player.BaseVitality * 3 / 2 + player.CharLevel + 22) << 6; // 1,5 * bVIT + clvl + 22
-		player.MaxBaseMana = (player.BaseMagic + player.BaseMagic / 2 + player.CharLevel - 3) << 6; // bMAG * 1,5 + clvl - 3
-	}
-	else if (player.fullClassId == PFC_TRAPPER) {
-		player.MaxBaseLife = ((player.BaseVitality * 7 / 4) + (HasTrait(playerIndex, TraitId::Engineer) ? 0 : (player.CharLevel * 3 / 2)) + 24) << 6; // (1,75 * bVIT) + (1,5 * clvl) + 24
-		player.MaxBaseMana = ((player.BaseMagic * 7 / 4) + (HasTrait(playerIndex, TraitId::Engineer) ? 0 : (player.CharLevel * 3 / 2)) - 11) << 6; // (bMAG * 1,75) + (1,5 * clvl) + 4
-	}
-	else if (player.fullClassId == PFC_MAGE || player.fullClassId == PFC_ELEMENTALIST || player.fullClassId == PFC_WARLOCK) {
-		if (GameMode == GM_CLASSIC) {
-			player.MaxBaseLife = (player.BaseVitality + player.CharLevel + 9) << 6; // 2*bVit +2*clvl + 18
-			player.MaxBaseMana = (2 * player.BaseMagic + 2 * player.CharLevel - 2) << 6; // 1*bMAG + 2*clv + 8
-		}
-		else if (HasTrait(playerIndex, TraitId::Mamluk)) {
-			player.MaxBaseLife = (7 * player.BaseVitality / 2 + player.CharLevel + 14) << 6;	// bVIT*3,5 + clv + 19 (85 on start by default)
-			player.MaxBaseMana = (player.BaseMagic + player.CharLevel + 4) << 6; // bMAG + clvl + 4
-		}
-		else if (HasTrait(playerIndex, TraitId::Psion) /*&& HasTrait(playerIndex, TraitId::GrimDeal)*/) {
-			player.MaxBaseLife = (player.BaseVitality + player.CharLevel + 9) << 6;	// bVIT + clv + 9
-			player.MaxBaseMana = (player.BaseMagic + player.CharLevel + 4) << 6; // bMAG + clvl + 4
-		}
-		else {
-			player.MaxBaseLife = (player.BaseVitality + player.CharLevel + 9) << 6;	// bVIT + clv + 9
-			player.MaxBaseMana = (2 * player.BaseMagic + 2 * player.CharLevel + 3) << 6; // 2 * bMAG + 2*clvl + 3
-		}
-	}
-	else if (player.fullClassId == PFC_DEMONOLOGIST || player.fullClassId == PFC_NECROMANCER) {
-		player.MaxBaseLife = (player.BaseVitality + 2 * player.CharLevel + 8) << 6;	// bVIT + 2*clv + 8
-		player.MaxBaseMana = ((player.BaseMagic * 5 / 4) + player.CharLevel + 22) << 6; // 1,25 * bMAG + clvl + 22
-	}
-	else if (player.fullClassId == PFC_BEASTMASTER) {
-		player.MaxBaseLife = (2 * player.BaseVitality + player.CharLevel / 2 - 5) << 6;	// 2*bVIT + clvl/2 - 5
-		player.MaxBaseMana = ((player.BaseMagic * 5 / 4) + player.CharLevel + 22) << 6; // 1,25 * bMAG + clvl + 22
-	}
-	else if (player.fullClassId == PFC_MONK || player.fullClassId == PFC_SHINOBI) {
-		player.MaxBaseLife = ((5 * player.BaseVitality / 2) + (2 * player.CharLevel + 13)) << 6;	// 2,5*bVIT + 2*clv + 13
-		player.MaxBaseMana = ((player.BaseMagic * 3 / 2) + player.CharLevel + 2) << 6; // 1,5 * bMAG + clvl + 2
-	}
-	else if (player.fullClassId == PFC_KENSEI) {
-		player.MaxBaseLife = (3 * player.BaseVitality + (2 * player.CharLevel + 13)) << 6;	// 3*bVIT + 2*clv + 13
-		player.MaxBaseMana = (3 * player.BaseMagic / 2 + player.CharLevel + 2) << 6; // 1,5 * bMAG + clvl + 2
-	}
-	else if (player.fullClassId == PFC_SHUGOKI) {
-		player.MaxBaseLife = (3 * player.BaseVitality + (player.BaseVitality / 2) + 3 * player.CharLevel + 12) << 6; // 3,5*bVit + 3*clvl + 12
-		player.MaxBaseMana = (player.BaseMagic + player.CharLevel + 4) << 6; // bMAG + clvl + 4
-	}
-	else if (player.fullClassId == PFC_ROGUE) {
-		if (HasTrait(playerIndex, TraitId::BigFrame)) {
-			player.MaxBaseLife = (3 * player.BaseVitality + (5 * player.CharLevel / 2) + 22) << 6;	// 3*bVIT + 2,5*clv + 22
-		}
-		else {
-			player.MaxBaseLife = (2 * player.BaseVitality + 2 * player.CharLevel + 18) << 6;	// 2*bVIT + 2*clv + 18
-		}
-		player.MaxBaseMana = (2 * player.BaseMagic + 2 * player.CharLevel + 18) << 6; // 2 * bMAG + 2*clvl + 18
-	}
-	else if (player.fullClassId == PFC_ASSASSIN) {
-		player.MaxBaseLife = (2 * player.BaseVitality + 2 * player.CharLevel + 18) << 6;	// 2*bVIT + 2*clv + 18
-		if (HasTrait(playerIndex, TraitId::Black_Witchery)) {
-			player.MaxBaseMana = (2 * player.BaseMagic + 3 * player.CharLevel + 27) << 6; // 2 * bMAG + 3*clvl + 27
-		}
-		else {
-			player.MaxBaseMana = ((3 * player.BaseMagic / 2) + (3 * player.CharLevel / 2) - 6) << 6; // 1,5 * bMAG + 1,5*clvl - 6
-		}
-	}
-	else if (player.fullClassId == PFC_IRON_MAIDEN) {
-		player.MaxBaseLife = (3 * player.BaseVitality + (player.CharLevel / 5) + 25) << 6;	// 3* bVIT + clvl/5 + 25
-		player.MaxBaseMana = (player.BaseMagic + player.CharLevel) << 6; // bMAG + clvl
-	}
-	else if (player.fullClassId == PFC_SAVAGE || player.fullClassId == PFC_BERSERKER || player.fullClassId == PFC_GUARDIAN) {
-	if (player.gameChanger & BIT(GC_27_TERMINATOR)) {		
-		player.MaxBaseLife = (2'000) << 6;
-		player.MaxBaseMana = 50 << 6;
-	}
-	else if (player.gameChanger & BIT(GC_28_SUPERMUTANT)) {
-		player.MaxBaseLife = (6 * player.BaseVitality + 5 * player.CharLevel + 20) << 6;	// 6*bVIT + 5*clv + 20
-		player.MaxBaseMana = (player.BaseMagic / 2 + player.CharLevel / 2 + 5) << 6;		//  bMAG/2 + clvl/2 + 5
-	}
-	else if (player.gameChanger & BIT(GC_29_ENCLAVE_SOLDIER)) {
-		player.MaxBaseLife = (5 * player.BaseVitality / 2 + 2 * player.CharLevel + 8) << 6;	// 2,5 *bVIT + 2*clv + 8
-		player.MaxBaseMana = (player.BaseMagic + player.CharLevel + 4) << 6;		//  bMAG + clvl + 4
-	}
-	else {
-		player.MaxBaseLife = (7 * player.BaseVitality / 2 + 2 * player.CharLevel + 16) << 6;	// 3,5*bVIT + 2*clv + 16
-		player.MaxBaseMana = (3 * player.BaseMagic / 2 + 2 * player.CharLevel + 8) << 6; // 1,5 * bMAG + 2*clvl + 8
-	}
-}
-	else if (player.fullClassId == PFC_EXECUTIONER) {
-		if (player.gameChanger & BIT(GC_9_NIGHT_KIN)) {
-			player.MaxBaseLife = (5 * player.BaseVitality + 5 * player.CharLevel) << 6;	// 5*bVIT + 5*clv - 8
-			player.MaxBaseMana = (5 * player.BaseMagic + 5 * player.CharLevel) << 6; // 5*bMAG + 5*clvl 
-		}
-		else{ // default exec
-			player.MaxBaseLife = (9 * player.BaseVitality / 2 + 3 * player.CharLevel) << 6;	// 4,5*bVIT + 3*clv
-			player.MaxBaseMana = (player.BaseMagic + player.CharLevel / 2) << 6; // bMAG + clvl/2 
-		}
-	}
-	else if (player.fullClassId == PFC_DRUID) {
-		player.MaxBaseLife = (3 * player.BaseVitality + 3 * player.CharLevel + 7) << 6;
-		player.MaxBaseMana = (2 * player.BaseMagic + 2 * player.CharLevel + 13) << 6;
-	}
-	if (HasTrait(playerIndex, TraitId::FearTheReaper)) {
-		player.MaxBaseLife = 50 << 6;
-	}
-	if (HasTrait(playerIndex, TraitId::Giant)) {
-		player.MaxBaseLife += player.BaseVitality << 6;
-	}
+	// character base life & mana formula (thmod: extracted, see CalcBaseLifeMana)
+	CalcBaseLifeMana(playerIndex, player.BaseVitality, player.BaseMagic, player.CharLevel, player.MaxBaseLife, player.MaxBaseMana);
 	// this should prevent base and baseMax life mismatches (there was a bug with Scout class having wrong values in the beginning)
 	LimitToMax(player.BaseLife, player.MaxBaseLife);
 	LimitToMax(player.BaseMana, player.MaxBaseMana);
