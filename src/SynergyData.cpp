@@ -639,9 +639,9 @@ Perk SynergyPerks[] = {
 	// (thmod) HYDRAMANCER SYNERGIES. PERK_ACID_MASTERY = Holy Mastery under Inquisitor's favour.
 	// Values: Glance of Destruction and Reaper's Sight are in hundredths of a percent (150 = 1.5%), shown by %h.
 	{ SYNERGY_HEAD_OF_THE_DRAGON, {"hydras may cast Incinerate::instead of Firebolt::%i%% chance:: ::incompatible with::Flame Sculpting"}, "Head of the Dragon", {
-		/* 0*/ { 21, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,130,0/*sdmv*/, 15 },
-		/* 1*/ { 25, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,145,0/*sdmv*/, 30 },
-		/* 2*/ { 30, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,170,0/*sdmv*/, 45 },
+		/* 0*/ { 21, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 3}/*perk*/, {}/*spell*/, 0,0,120,0/*sdmv*/, 15 },
+		/* 1*/ { 30, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 4}/*perk*/, {}/*spell*/, 0,0,165,0/*sdmv*/, 25 },
+		/* 2*/ { 45, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,200,0/*sdmv*/, 35 },
 	} },
 
 	{ SYNERGY_GLANCE_OF_DESTRUCTION, {"hydras may cast the nova::version of their spell::%h%% chance"}, "Glance of Destruction", {
@@ -659,16 +659,16 @@ Perk SynergyPerks[] = {
 	} },
 
 	{ SYNERGY_FLAME_SCULPTING, {"hydras may cast Fireblast::instead of Firebolt::%i%% chance:: ::incompatible with::Head of the Dragon"}, "Flame Sculpting", {
-		/* 0*/ { 21, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,130,0/*sdmv*/, 10 },
-		/* 1*/ { 25, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,145,0/*sdmv*/, 15 },
-		/* 2*/ { 30, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,170,0/*sdmv*/, 25 },
+		/* 0*/ { 21, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 3}/*perk*/, {}/*spell*/, 0,0,120,0/*sdmv*/, 8 },
+		/* 1*/ { 30, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 4}/*perk*/, {}/*spell*/, 0,0,165,0/*sdmv*/, 12 },
+		/* 2*/ { 45, IPCM_WARLOCK, {PERK_FIRE_MASTERY, 5}/*perk*/, {}/*spell*/, 0,0,200,0/*sdmv*/, 20 },
 	} },
 
 	// two values: [0] chance %, [1] chain jumps of the chain lightning (Missile.cpp ActChainLightning)
 	{ SYNERGY_CONJURATION_OVERLOAD, {"hydras may cast Lightning::instead of Charged Bolt::%i%% chance", "chain jumps: %i"}, "Conjuration Overload", {
-		/* 0*/ { 21, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 5, PERK_MASTER_CASTER, 3}/*perk*/, {}/*spell*/, 0,0,130,0/*sdmv*/, 4, 3 },
-		/* 1*/ { 25, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 5, PERK_MASTER_CASTER, 6}/*perk*/, {}/*spell*/, 0,0,145,0/*sdmv*/, 7, 4 },
-		/* 2*/ { 30, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 5, PERK_MASTER_CASTER, 9}/*perk*/, {}/*spell*/, 0,0,170,0/*sdmv*/, 9, 5 },
+		/* 0*/ { 21, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 3, PERK_MASTER_CASTER, 3}/*perk*/, {}/*spell*/, 0,0,120,0/*sdmv*/, 4, 3 },
+		/* 1*/ { 30, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 4, PERK_MASTER_CASTER, 6}/*perk*/, {}/*spell*/, 0,0,165,0/*sdmv*/, 7, 4 },
+		/* 2*/ { 45, IPCM_WARLOCK, {PERK_LIGHTNING_MASTERY, 5, PERK_MASTER_CASTER, 9}/*perk*/, {}/*spell*/, 0,0,200,0/*sdmv*/, 9, 5 },
 	} },
 
 	{ SYNERGY_WYVERN_WHISPERER, {"    hydra damage +%i%%"}, "Wyvern Whisperer", {
