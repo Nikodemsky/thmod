@@ -15,32 +15,32 @@ Submod for The Hell 4 based on source provided for v.744
 
 ### QOL's:
 
-01. Custom markings for Stairs/Entrances
+01. **Custom markings for Stairs/Entrances**
 
 > [!NOTE]
 > Enabled by default, disable by setting: `set StairLabels off`
 
-02. Full support for mouse scroll in the main menu
-03. Added timer for The Den (Rampaging demon quest)
-04. Added pedestal next to statues for Island of the Sunless sea
+02. **Full support for mouse scroll in the main menu**
+03. **Added timer for The Den** (Rampaging demon quest)
+04. **Added pedestal next to statues for Island of the Sunless sea**
 * opens portal right away, 
 * costs 99% current hp/mp and 5% of current level's xp
 
-05. Monster tracking on minimap<br>
+05. **Monster tracking on minimap**<br>
 tracks aggroed monsters on the minimap, based on implementation of StArchon/Godroll
 
 > [!NOTE]
 > Disabled by default, enable by adding:
 `set ShowBattleMarkers on`
 
-06. Custom Statistics / Caps panel
+06. **Custom Statistics / Caps panel**
 * Available from character panel, with tabs or by hotkey "/"
 
 ### Mechanics:
 
-01. New GC for Hydramancer - Inquisitor's favour; converts Acid element to holy one for hydras
-02. Redesigned synergies for hydramancer
-03. New GC for Guardian - Siegemaster, allows to summon Trapper and Bombardier minions [**WIP**]
+01. **New GC for Hydramancer - Inquisitor's favour**; converts Acid element to holy one for hydras
+02. **Redesigned synergies for hydramancer**
+03. **New GC for Guardian - Siegemaster**, allows to summon Trapper and Bombardier minions [**WIP**]
 
 ### Custom functionalities
 
