@@ -44,7 +44,7 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 
 ### Custom functionalities
 
-01. Shared stash
+01. **Shared stash**
 
 > [!NOTE]
 > disabled by default, enable by adding:
@@ -55,16 +55,16 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 * items, that could morph or would be incompatible with current character will simply be locked
 * Access via "Open safe deposit box" option, Gillian
 
-02. Rich presence for Discord
+02. **Rich presence for Discord**
 
 > [!NOTE]
 > disabled by default, enable by adding:
 `set DiscordRichPresence on` to the config file
 
-03. Linux compability layer for wine/proton
+03. **Linux compability layer for wine/proton**
 * Works with `set DDraw off`
 * Enabled by default, no need for additional configurations
-* Incorporated into main mod, as of v0.811
+* <ins>Incorporated into main mod, as of v0.811</ins>
 * Tested on KDE/Xfce/Gnome/Cinnamon desktop enviroments
 
 _________________
