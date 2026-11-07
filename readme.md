@@ -39,7 +39,7 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 ### Mechanics:
 
 01. New GC for Hydramancer - Inquisitor's favour; converts Acid element to holy one for hydras
-02. Redesigned synergies for hydramancer [**WIP**]
+02. Redesigned synergies for hydramancer
 03. New GC for Guardian - Siegemaster, allows to summon Trapper and Bombardier minions [**WIP**]
 
 ### Custom functionalities
@@ -72,6 +72,7 @@ _________________
 ### TO DO's
 
 - [ ] Come up with proper title for the submod
+- [ ] Add image reference to custom functionalities in readme
 - [ ] Show current debuffs as icons or text infos in UI
 - [x] ~~Show current statcap~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
 - [x] ~~Further balance for new hydramancer's synergies~~ Mostly done.
@@ -102,6 +103,8 @@ _________________
 - [ ] Custom UI icons for vulnerabilities
 - [ ] New biomes
 - [ ] New monsters (with custom/unique sprites)
+- [ ] Companion/Pet for picking up gold and possibly items
+- [ ] Custom website for submod
 
 <br>
 and more.
