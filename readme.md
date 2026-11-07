@@ -67,7 +67,6 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 * Incorporated into main mod, as of v0.811
 * Tested on KDE/Xfce/Gnome/Cinnamon desktop enviroments
 
-
 _________________
 
 ### TO DO's
@@ -80,12 +79,41 @@ _________________
 - [ ] Rebalance paladin (mostly hammers)
 - [ ] Custom rule for normal mode, allowing to save everywhere (probably same implementation as in Antigrind submod, via GC)
 - [ ] Allow uberbosses in SP (probably also through GC)
+- [ ] Make Midas set actually fully obtainable
 - [x] ~~Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
-- [ ] Big maybe: custom mechanics for Super Mutant GC
-- [ ] Big maybe: Achievements
-- [x] ~~Big maybe: new, custom tab with additional info, or stricly technical info for the current character~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
-- [ ] Small maybe: Custom greetings for npc's
-- [ ] Maybe: Some custom works on Warlord
+
+
+## Under Consideration
+
+- [x] ~~New, custom tab with additional info, or stricly technical info for the current character~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
+- [ ] Custom mechanics for Super Mutant GC
+- [ ] Achievements
+- [ ] Custom greetings for npc's
+- [ ] Some custom works on Warlord
+- [ ] Custom spells
+- [ ] Some works on summoners, possibly synergies
+- [ ] Custom ailments, starting with ignite based on fire damage
+- [ ] Custom works on thief
+- [ ] Custom, additional formula for XP; possibly based on dlvl
+- [ ] High-level drops
+- [ ] Custom works on Gladiatrix, possibly give better chance to drop sigils, in certain circumstances
+- [ ] Custom works on Psion
+- [ ] Custom sprites for characters, along with Blender template for easy batching for spritesheets
+- [ ] Custom UI icons for vulnerabilities
+- [ ] New biomes
+- [ ] New monsters (with custom/unique sprites)
 
 <br>
 and more.
+
+_________________
+
+### Roadmap
+
+Currently on the scope:
+
+1. Visualization of debuffs
+2. Small changes - ubers in SP, custom rule for normal mode, Midas set
+3. Siegemaster
+
+\+ sometime in the future, update mod base along with newly provided source (for now latest is v.744).
