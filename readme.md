@@ -82,7 +82,9 @@ _________________
 - [ ] Allow uberbosses in SP (probably also through GC)
 - [ ] Make Midas set actually fully obtainable
 - [x] ~~Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
-
+- [x] Revamped house textures for Ravenholm
+- [x] Fixed collision for Ravenholm buildings
+- [x] Added minimap rendering fix/support for Ravenholm
 
 ## Under Consideration
 
