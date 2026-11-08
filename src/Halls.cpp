@@ -5,7 +5,11 @@ char* GetSolName()
 {
 	char* SOLFileName = 0;
 	if( Dungeon->genType == DT_0_TOWN ){
-		SOLFileName = "NLevels\\TownData\\Town.SOL";
+		if( RavenholmRuins() ){	// (visuals) RAVENHOLM RUINS: Ravenholm's own copy of the town tileset
+			SOLFileName = "NLevels\\TownData\\Ravenholm.SOL";
+		}else{
+			SOLFileName = "NLevels\\TownData\\Town.SOL";
+		}
 	}else if( Dungeon->genType == DT_1_CHURCH ){
 		if( Dungeon ->graphType >= DT_5_CRYPT ){
 			SOLFileName = "NLevels\\L5Data\\L5.SOL";
