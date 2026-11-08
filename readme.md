@@ -26,7 +26,7 @@ Submod for The Hell 4 based on source provided for v.744
 03. **Added timer for The Den** (Rampaging demon quest)
 
 ![Den timer 1](/github-repo-assets/img/den-timer-1.jpg) <br>
-![Den timer 2](/github-repo-assets/img/den-timer-1.jpg)
+![Den timer 2](/github-repo-assets/img/den-timer-2.jpg)
 
 04. **Added pedestal next to statues for Island of the Sunless sea**
 * opens portal right away, 
@@ -41,6 +41,8 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 
 06. **Custom Statistics / Caps panel**
 * Available from character panel, with tabs or by hotkey "/"
+
+![Cap stats panel tab](/github-repo-assets/img/capstats-tab-1.jpg)
 
 ### Mechanics:
 
@@ -63,6 +65,9 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 
 02. **Rich presence for Discord**
 
+![Rich presence - Discord 1](/github-repo-assets/img/rich-presence-1.jpg) <br>
+![Rich presence - Discord 2](/github-repo-assets/img/rich-presence-2.jpg)
+
 > [!NOTE]
 > disabled by default, enable by adding:
 `set DiscordRichPresence on` to the config file
@@ -79,6 +84,7 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 * Added minimap rendering support
 * <ins>Incorporated into main mod, as of v0.820</ins>
 
+![Ravenholm 1](/github-repo-assets/img/ravenholm-1.jpg)
 _________________
 
 ### TO DO's

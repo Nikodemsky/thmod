@@ -20,3 +20,4 @@ lib/oggvorbis/
 *.VC.opendb
 ipch/
 x64/
+github-repo-assets/
