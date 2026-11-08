@@ -5531,6 +5531,13 @@ void LoadLvlGFX()
 {
 	switch( Dungeon->graphType ){
 	case DT_0_TOWN:
+		if( RavenholmRuins() ){	// (visuals) RAVENHOLM RUINS: Ravenholm's own copy of the town tileset
+			CurrentLevelCELFile = (int*)LoadFile("NLevels\\TownData\\Ravenholm.CEL");
+			CurrentLevelTilesFile = (char*)LoadFile("NLevels\\TownData\\Ravenholm.TIL");
+			CurrentLevelMINFile = (char*)LoadFile("NLevels\\TownData\\Ravenholm.MIN");
+			CurrentLevelSCELFile = (char*)LoadFile("Levels\\TownData\\TownS.CEL");
+			break;
+		}
 		CurrentLevelCELFile = (int*)LoadFile("NLevels\\TownData\\Town.CEL");
 		CurrentLevelTilesFile = (char*)LoadFile("NLevels\\TownData\\Town.TIL");
 		CurrentLevelMINFile = (char*)LoadFile("NLevels\\TownData\\Town.MIN");
