@@ -244,6 +244,78 @@ void ResetAutoMap()
 	AutomapZoom2 = 2;
 }
 
+// (fixes) RAVENHOLM MAP: Ravenholm is a quest level built from the town's tiles, and the town has no .AMP (the game
+// never drew a map of Tristram), so its automap and minimap showed only the arrow and the portal. Its map is drawn
+// from the collision instead: every walk-blocking cell gets the edges of its diamond (the one AutomapDrawOneItem
+// draws) drawn where it borders a cell one can walk on -- the houses, the stone fences, the trees, the river banks.
+// Only explored cells (DoVision's CF_128_DISCOVERED), unless the config says map=open.
+// Edges in one straight row are drawn as one line: the full map has ~3400 cell edges, drawn twice with the
+// AUTOMAP SHADOW, and AutomapLines[] holds 5000 lines (~1640 joined ones a pass). A row is cut where it leaves the
+// screen, as AutomapDrawLine drops a whole line with an end outside it.
+void AutoMapIsometricCalc(int row, int col, int& x, int& y); // defined further down
+
+static bool AutomapCellBlocks( int r, int c )
+{
+	return TileBlockWalking[ FineMap[ r ][ c ] ] != 0;
+}
+
+static bool AutomapCellEdge( int r, int c, int nr, int nc )	// a shown, blocking cell next to a walkable one
+{
+	if( nr < 0 || nr >= 112 || nc < 0 || nc >= 112 ) return false;	// no edge along the map's border
+	if( !AutomapCellBlocks( r, c ) || AutomapCellBlocks( nr, nc ) ) return false;
+	return !IsNotMapOpen || ( FlagMap[ r ][ c ] & CF_128_DISCOVERED );
+}
+
+static bool AutomapOnScreen( int x, int y )	// AutomapDrawLine's own bounds
+{
+	return x >= Screen_LeftBorder && x < WorkingWidth - Screen_RightBorder && y >= Screen_TopBorder && y < WorkingHeight - Screen_BottomBorder;
+}
+
+struct AutomapEdgeRun { bool on = false; int x1 = 0, y1 = 0, x2 = 0, y2 = 0; };
+
+static void AutomapEdgeRunEnd( AutomapEdgeRun& run, uchar color )
+{
+	if( run.on ) AutomapDrawLine( run.x1, run.y1, run.x2, run.y2, color );
+	run.on = false;
+}
+
+static void AutomapEdgeRunStep( AutomapEdgeRun& run, bool edge, int x1, int y1, int x2, int y2, uchar color )
+{
+	if( edge && AutomapOnScreen( x1, y1 ) && AutomapOnScreen( x2, y2 ) ){
+		if( !run.on ){ run.on = true; run.x1 = x1; run.y1 = y1; }
+		run.x2 = x2; run.y2 = y2;
+	}else{
+		AutomapEdgeRunEnd( run, color );
+	}
+}
+
+static void AutomapDrawCollisionMap()
+{
+	const uchar color = 200;	// AutomapDrawStaticObject's wall colour
+	const int z4 = AutomapZoom4, z8 = AutomapZoom8;
+	int x = 0, y = 0;
+	// edges facing col - 1 (up-right) and col + 1 (down-left): a row runs along row
+	for( int c = 0; c < 112; ++c ){
+		AutomapEdgeRun upRight, downLeft;
+		for( int r = 0; r < 112; ++r ){
+			AutoMapIsometricCalc( r, c, x, y );
+			AutomapEdgeRunStep( upRight, AutomapCellEdge( r, c, r, c - 1 ), x, y - z4, x + z8, y, color );
+			AutomapEdgeRunStep( downLeft, AutomapCellEdge( r, c, r, c + 1 ), x - z8, y, x, y + z4, color );
+		}
+		AutomapEdgeRunEnd( upRight, color ); AutomapEdgeRunEnd( downLeft, color );
+	}
+	// edges facing row - 1 (up-left) and row + 1 (down-right): a row runs along col
+	for( int r = 0; r < 112; ++r ){
+		AutomapEdgeRun upLeft, downRight;
+		for( int c = 0; c < 112; ++c ){
+			AutoMapIsometricCalc( r, c, x, y );
+			AutomapEdgeRunStep( upLeft, AutomapCellEdge( r, c, r - 1, c ), x, y - z4, x - z8, y, color );
+			AutomapEdgeRunStep( downRight, AutomapCellEdge( r, c, r + 1, c ), x + z8, y, x, y + z4, color );
+		}
+		AutomapEdgeRunEnd( upLeft, color ); AutomapEdgeRunEnd( downRight, color );
+	}
+}
+
 //----- (00401D61) --------------------------------------------------------
 void InitDungeonAutomapData()
 {
@@ -263,7 +335,7 @@ void InitDungeonAutomapData()
 		++i;
 	}while( i < 41 );
 	memset(LevelAutomapData, 0, sizeof( LevelAutomapData ));
-	char* levelAmpFile;
+	char* levelAmpFile = 0;
 	switch( Dungeon->graphType ){
 	case DT_1_CHURCH  : levelAmpFile = "Levels\\L1Data\\L1.AMP"; break;
 	case DT_2_CATACOMB: levelAmpFile = "Levels\\L2Data\\L2.AMP"; break;
@@ -271,15 +343,19 @@ void InitDungeonAutomapData()
 	case DT_4_HELL    : levelAmpFile = "Levels\\L4Data\\L4.AMP"; break;
 	case DT_5_CRYPT   : levelAmpFile = "NLevels\\L5Data\\L5.AMP"; break;
 	case DT_6_ABYSS   : levelAmpFile = "NLevels\\L6Data\\L6.AMP"; break;
-	default           : return;
+	default           :
+		if( Dungeon == DUN_44_RAVENHOLM ) break;	// (fixes) RAVENHOLM MAP: no .AMP, but the explored cells start over below
+		return;
 	}
 
-	int size;
-	char* amp = (char*)LoadFile(levelAmpFile, &size);
-	for( int i = 0; i < size; i += 2 ){
-		LevelAutomapData[i / 2 + 1] = amp[i] + (amp[i + 1] << 8); // (rt) hardware-independent word load
+	if( levelAmpFile ){
+		int size;
+		char* amp = (char*)LoadFile(levelAmpFile, &size);
+		for( int i = 0; i < size; i += 2 ){
+			LevelAutomapData[i / 2 + 1] = amp[i] + (amp[i + 1] << 8); // (rt) hardware-independent word load
+		}
+		FreeMem(amp);
 	}
-	FreeMem(amp);
 
 	memset( AutoMap, 0, sizeof( AutoMap ) );
 	for( int i = 0; i < 112*112; i++ ){
@@ -553,6 +629,10 @@ void DrawAutoMap()
 		StairLabels_Draw(); // (thmod) STAIR LABELS: on top of this pass's map lines
 		}
 		AutomapShadowPass = false;
+		if( Dungeon == DUN_44_RAVENHOLM ){	// (fixes) RAVENHOLM MAP: its own shadow + lines passes, like the map's above
+			for( int pass = AutomapShadow ? 0 : 1; pass < 2; ++pass ){ AutomapShadowPass = pass == 0; AutomapDrawCollisionMap(); }
+			AutomapShadowPass = false;
+		}
 		if( Dungeon->genType || Dungeon->isQuest ){
 			AutomapDrawPlayers();
 		}

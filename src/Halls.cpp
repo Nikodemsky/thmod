@@ -79,6 +79,16 @@ void FillSolidBlockTables()
 		if( solFlag & BIT(8) ) IsWall[i] = 1; // (rt) this is a wall
 	}
 	FreeMem( sol );
+	// (fixes) RAVENHOLM COLLISION: Ravenholm is built from the town's tiles, and the town (no combat in Tristram)
+	// blocks only walking at its houses -- bolts and arrows flew straight through them. The wall pieces of
+	// Ravenholm's 6 houses and the mausoleum by the graveyard (pieces Ravenholm and RavenholmDC.dun use for those
+	// buildings only -- the stone fences and the trees are left as they were) block missiles there too.
+	if( Dungeon == DUN_44_RAVENHOLM ){
+		static const ushort ravenholmHouseWalls[] = {
+			259, 469, 470, 473, 474, 477, 478, 479, 481, 483, 485, 487, 852, 854, 856, 862, 864,
+			866, 867, 870, 871, 1135, 1137, 1139, 1141, 1175, 1177, 1179, 1181, 1183, 1185, 1257, 1258 };
+		for( ushort piece : ravenholmHouseWalls ) TileBlockMissle[ piece ] = 1;
+	}
 }
 
 int MaxDarkenTilePixelIndex = 0;
