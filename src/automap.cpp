@@ -1505,6 +1505,10 @@ void AutomapDrawOneMonster( int monsterIndex, int color )
 //----- (00402FAC) --------------------------------------------------------
 ushort __fastcall GetStaticObjectFlags(int row, int col, bool getForAutomap)
 {
+	// (fixes) RAVENHOLM MAP: no .AMP there (LevelAutomapData is all 0), so nothing of the usual map -- but the
+	// row/col -1 rule below still drew a field of dirt dots (BIT(15)) along the explored top edge of the 40x40
+	// map (fine rows 14-15: right over the village's top fence), on top of AutomapDrawCollisionMap's border.
+	if( Dungeon == DUN_44_RAVENHOLM ) return 0;
 	if( getForAutomap ){
 		if( row == -1 && In40(col) && AutoMap[ 0 ][ col ] ){
 			return ~GetStaticObjectFlags(0, col, 0) & BIT(15);
