@@ -2244,9 +2244,33 @@ void GenerateQuestFloor_117_DarkLord_Hideout()
 	// from QuestsActions() instead, which is also how the Lazarus and Sunless Sea portals work.
 }
 
+// (visuals) RAVENHOLM RUINS: the normal Ravenholm (not the Dark Campaign mission 26 layout) is drawn with its own
+// copy of the town tileset -- NLevels\TownData\Ravenholm.CEL/.MIN/.TIL/.SOL plus Levels\TownData\RavenholmRuins.DUN,
+// all from TH_ns_assets.mor. The copy keeps every frame / piece / tile the original Ravenholm uses at its number (the
+// TownWater tables and the arch overlays rely on them) and puts the ruined houses into frames Ravenholm never uses
+// and into pieces / tiles appended at the end. Any of the five files missing => the original Town.* look.
+bool RavenholmRuins()
+{
+	if( Dungeon != DUN_44_RAVENHOLM || GameMode == GM_DARK_CAMPAIGN ) return false;
+	static int available = -1;
+	if( available < 0 ){
+		static const char* const files[] = {
+			"NLevels\\TownData\\Ravenholm.CEL", "NLevels\\TownData\\Ravenholm.MIN", "NLevels\\TownData\\Ravenholm.TIL",
+			"NLevels\\TownData\\Ravenholm.SOL", "Levels\\TownData\\RavenholmRuins.DUN" };
+		available = 1;
+		for( const char* f : files ){
+			HANDLE h;
+			if( File_Open( f, &h, ONE_TRY ) ) File_Close( h );
+			else{ available = 0; break; }
+		}
+	}
+	return available == 1;
+}
+
 void GenerateQuestFloor_44_Ravenholm()
 {
 	char* dunName = "LEVELS\\TOWNDATA\\RAVENHOLM.DUN";
+	if( RavenholmRuins() ) dunName = "Levels\\TownData\\RavenholmRuins.DUN";	// (visuals) RAVENHOLM RUINS
 	int row = 93, col = 90;
 	if (GameMode == GM_DARK_CAMPAIGN) {	// (th4) DC mission 26: own layout and arrival
 		dunName = "LEVELS\\TOWNDATA\\RavenholmDC.DUN";

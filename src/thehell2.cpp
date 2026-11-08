@@ -3602,7 +3602,7 @@ void LoadQuestDungeonMainMapTown(char* dunFileName, int playerRowPos, int player
 	ushort rowSize = dunData[0];
 	ushort colSize = dunData[1];
 	ushort* dunArray = &dunData[2];
-	TileSquare* townTiles = (TileSquare*)LoadFile("Levels\\TownData\\Town.TIL");
+	TileSquare* townTiles = (TileSquare*)LoadFile( RavenholmRuins() ? "NLevels\\TownData\\Ravenholm.TIL" : "Levels\\TownData\\Town.TIL" );	// (visuals) RAVENHOLM RUINS
 	for( int col = 0; col < colSize; col++ ){
 		for( int row = 0; row < rowSize; row++ ){
 			ushort wallAndFloorMapValue = dunArray[row + col * rowSize];

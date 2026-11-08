@@ -2424,6 +2424,7 @@ bool  IsSaveAndLeavingEnabled( );//	Warp
 i64 GetTickCountTh();
 
 void GenerateQuestFloor_44_Ravenholm();// Quest
+bool RavenholmRuins();// (visuals) Ravenholm drawn with its own tileset from TH_ns_assets.mor
 void GenerateQuestFloor_45_TheDen();// Quest
 void GenerateQuestFloor_46_Coliseum();
 void __fastcall AdjustDDrawWindow( HWND hwnd );//   
