@@ -211,6 +211,30 @@ static void RavenMap_Build()
 		if( RavenMap[ r ][ c ] & RM_AREA ) continue;
 		RavenMap[ r ][ c ] |= RM_VOID; RavenMap[ r ][ c ] &= ~RM_WALL;	// only the area's walls are drawn
 	}
+	// closed pockets: walkable cells walled in on every side (the inside of a house's walls) are filled in as part of
+	// the building, so it is drawn as one solid outline instead of a hollow one; pockets that touch the void stay open
+	memset( mark, 0, sizeof( mark ) );
+	int bestOpen = 0, bestOpenCell = -1;
+	for( int r = 0; r < 112; ++r ) for( int c = 0; c < 112; ++c ){
+		if( ( RavenMap[ r ][ c ] & ( RM_AREA | RM_WALL ) ) != RM_AREA || mark[ r ][ c ] ) continue;
+		const int size = RavenMap_Piece( r, c, RM_AREA, RM_WALL, mark, queue );
+		if( size > bestOpen ){ bestOpen = size; bestOpenCell = r * 112 + c; }
+	}
+	memset( mark, 0, sizeof( mark ) );
+	if( bestOpenCell >= 0 ) RavenMap_Piece( bestOpenCell / 112, bestOpenCell % 112, RM_AREA, RM_WALL, mark, queue );
+	for( int r = 0; r < 112; ++r ) for( int c = 0; c < 112; ++c ){
+		if( ( RavenMap[ r ][ c ] & ( RM_AREA | RM_WALL ) ) != RM_AREA || mark[ r ][ c ] ) continue;
+		const int size = RavenMap_Piece( r, c, RM_AREA, RM_WALL, mark, queue );
+		bool touchesVoid = false;
+		for( int i = 0; i < size && !touchesVoid; ++i ){
+			const int pr = queue[ i ] / 112, pc = queue[ i ] % 112;
+			for( int dr = -1; dr <= 1; ++dr ) for( int dc = -1; dc <= 1; ++dc ){
+				const int nr = pr + dr, nc = pc + dc;
+				if( nr >= 0 && nr < 112 && nc >= 0 && nc < 112 && ( RavenMap[ nr ][ nc ] & RM_VOID ) ) touchesVoid = true;
+			}
+		}
+		if( !touchesVoid ) for( int i = 0; i < size; ++i ) RavenMap[ queue[ i ] / 112 ][ queue[ i ] % 112 ] |= RM_WALL;
+	}
 	// the dotted band: void cells up to RAVEN_MAP_BAND cells from the area (8 neighbours)
 	for( int r = 0; r < 112; ++r ) for( int c = 0; c < 112; ++c ){
 		if( !( RavenMap[ r ][ c ] & RM_VOID ) ) continue;
