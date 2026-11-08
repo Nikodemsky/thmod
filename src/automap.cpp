@@ -127,10 +127,10 @@ static void RavenMap_Build()
 		RavenMap[ r ][ c ] = RM_AREA;
 		const int piece = FineMap[ r ][ c ];
 		if( !TileBlockWalking[ piece ] ) continue;
-		bool small = false;
-		for( ushort s : kRavenMapSmall ) if( piece == s ){ small = true; break; }
-		if( small ) for( auto& h : houses ) if( r >= h[0] && r <= h[1] && c >= h[2] && c <= h[3] ){ small = false; break; }
-		if( !small ) RavenMap[ r ][ c ] |= RM_WALL;
+		bool isSmall = false;
+		for( ushort s : kRavenMapSmall ) if( piece == s ){ isSmall = true; break; }
+		if( isSmall ) for( auto& h : houses ) if( r >= h[0] && r <= h[1] && c >= h[2] && c <= h[3] ){ isSmall = false; break; }
+		if( !isSmall ) RavenMap[ r ][ c ] |= RM_WALL;
 	}
 	// patches of walls smaller than RAVEN_MAP_MIN_CELLS (4-connected) are small obstacles too
 	static short queue[ 112 * 112 ];
