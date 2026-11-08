@@ -17,11 +17,17 @@ Submod for The Hell 4 based on source provided for v.744
 
 01. **Custom markings for Stairs/Entrances**
 
+![Map markers](/github-repo-assets/img/map-markers-1.jpg)
+
 > [!NOTE]
 > Enabled by default, disable by setting: `set StairLabels off`
 
 02. **Full support for mouse scroll in the main menu**
 03. **Added timer for The Den** (Rampaging demon quest)
+
+![Den timer 1](/github-repo-assets/img/den-timer-1.jpg) <br>
+![Den timer 2](/github-repo-assets/img/den-timer-1.jpg)
+
 04. **Added pedestal next to statues for Island of the Sunless sea**
 * opens portal right away, 
 * costs 99% current hp/mp and 5% of current level's xp
@@ -67,6 +73,12 @@ tracks aggroed monsters on the minimap, based on implementation of StArchon/Godr
 * <ins>Incorporated into main mod, as of v0.811</ins>
 * Tested on KDE/Xfce/Gnome/Cinnamon desktop enviroments
 
+04. **Ravenholm revisited**
+* Custom textures for buildings
+* Fixed collision
+* Added minimap rendering support
+* <ins>Incorporated into main mod, as of v0.820</ins>
+
 _________________
 
 ### TO DO's
@@ -74,21 +86,14 @@ _________________
 - [ ] Come up with proper title for the submod
 - [ ] Add image reference to custom functionalities in readme
 - [ ] Show current debuffs as icons or text infos in UI
-- [x] ~~Show current statcap~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
-- [x] ~~Further balance for new hydramancer's synergies~~ Mostly done.
 - [ ] Further works on Siegemaster (as of now, it's just baseline)
 - [ ] Rebalance paladin (mostly hammers)
 - [ ] Custom rule for normal mode, allowing to save everywhere (probably same implementation as in Antigrind submod, via GC)
 - [ ] Allow uberbosses in SP (probably also through GC)
 - [ ] Make Midas set actually fully obtainable
-- [x] ~~Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
-- [x] Revamped house textures for Ravenholm
-- [x] Fixed collision for Ravenholm buildings
-- [x] Added minimap rendering fix/support for Ravenholm
 
 ## Under Consideration
 
-- [x] ~~New, custom tab with additional info, or stricly technical info for the current character~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
 - [ ] Custom mechanics for Super Mutant GC
 - [ ] Achievements
 - [ ] Custom greetings for npc's
@@ -110,6 +115,16 @@ _________________
 
 <br>
 and more.
+
+## Finshed
+
+- [x] ~~Show current statcap~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
+- [x] ~~Further balance for new hydramancer's synergies~~ Mostly done
+- [x] ~~Time counter, for ingame time spent on specific character (probably same implementation, as in for Godroll)~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
+- [x] ~~New, custom tab with additional info, or stricly technical info for the current character~~ done: [e9b2d92](https://github.com/Nikodemsky/thmod/commit/e9b2d92270f30c1819b36c111efd33823c990ab2) / [v0.06](https://github.com/Nikodemsky/thmod/releases/tag/v0.06)
+- [x] ~~Revamp house textures for Ravenholm~~ done: [pull-2](https://github.com/Nikodemsky/thmod/pull/2/changes) / [v0.07](https://github.com/Nikodemsky/thmod/releases/tag/v0.07)
+- [x] ~~Fix collision for Ravenholm buildings~~ done: [4693d34](https://github.com/Nikodemsky/thmod/pull/4/changes/4693d34553dede3308488787e20208faf344263c) / [v0.07](https://github.com/Nikodemsky/thmod/releases/tag/v0.07)
+- [x] ~~Add minimap rendering fix/support for Ravenholm~~ done: [pull-3](https://github.com/Nikodemsky/thmod/pull/3/changes) / [v0.07](https://github.com/Nikodemsky/thmod/releases/tag/v0.07)
 
 _________________
 
