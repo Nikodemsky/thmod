@@ -85,24 +85,93 @@ void ResetAutoMap()
 
 // (fixes) RAVENHOLM MAP: Ravenholm is a quest level built from the town's tiles, and the town has no .AMP (the game
 // never drew a map of Tristram), so its automap and minimap showed only the arrow and the portal. Its map is drawn
-// from the collision instead: every walk-blocking cell gets the edges of its diamond (the one AutomapDrawOneItem
-// draws) drawn where it borders a cell one can walk on -- the houses, the stone fences, the trees, the river banks.
-// Only explored cells (DoVision's CF_128_DISCOVERED), unless the config says map=open.
-// Edges in one straight row are drawn as one line: the full map has ~3400 cell edges, drawn twice with the
-// AUTOMAP SHADOW, and AutomapLines[] holds 5000 lines (~1640 joined ones a pass). A row is cut where it leaves the
-// screen, as AutomapDrawLine drops a whole line with an end outside it.
+// from the collision instead, in the dungeon maps' style:
+//   - only the village (RavenMapArea, a polygon in cells around the houses, the river and the graveyard); its
+//     border is a band of dots, like the dungeons' dotted edges (the 4 dots of a cell = AutomapDrawStaticObject's
+//     16-dot pattern of a 40x40 square);
+//   - lines along the walk-blocking cells that border walkable ones: the houses, the mausoleum, the stone fences,
+//     the river. Trees, rocks, the cauldron and other small obstacles are left out (kRavenMapSmall: their pieces;
+//     then any blocking patch under RAVEN_MAP_MIN_CELLS cells), except inside the houses' footprints.
+// Only explored cells (DoVision's CF_128_DISCOVERED), unless the config says map=open. Edges in one straight row are
+// drawn as one line: AutomapLines[] holds 5000 lines and the map is drawn twice (AUTOMAP SHADOW). A row is cut where
+// it leaves the screen, as AutomapDrawLine drops a whole line with an end outside it.
 void AutoMapIsometricCalc(int row, int col, int& x, int& y); // defined further down
 
-static bool AutomapCellBlocks( int r, int c )
+enum { RM_AREA = 1, RM_WALL = 2, RM_BORDER = 4, RAVEN_MAP_MIN_CELLS = 8 };
+static uchar RavenMap[ 112 ][ 112 ];
+static bool RavenMapReady = false;	// built at the first draw after InitDungeonAutomapData
+
+static bool RavenMapInArea( int r, int c )	// the cell's centre in the village polygon (cells, from the map render)
 {
-	return TileBlockWalking[ FineMap[ r ][ c ] ] != 0;
+	static const int area[][2] = { {14,95}, {12,53}, {20,55}, {33,54}, {34,49}, {62,50}, {62,47}, {68,46}, {94,45}, {95,95} };
+	const int n = countof( area );
+	const double x = r + 0.5, y = c + 0.5;
+	bool in = false;
+	for( int i = 0, j = n - 1; i < n; j = i++ ){
+		const double xi = area[i][0], yi = area[i][1], xj = area[j][0], yj = area[j][1];
+		if( (yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi ) in = !in;
+	}
+	return in;
 }
 
-static bool AutomapCellEdge( int r, int c, int nr, int nc )	// a shown, blocking cell next to a walkable one
+static void RavenMap_Build()
 {
-	if( nr < 0 || nr >= 112 || nc < 0 || nc >= 112 ) return false;	// no edge along the map's border
-	if( !AutomapCellBlocks( r, c ) || AutomapCellBlocks( nr, nc ) ) return false;
+	static const ushort kRavenMapSmall[] = {	// trees, rocks, the cauldron, graves ... (pieces of RAVENHOLM / RavenholmDC.dun)
+		131, 157, 168, 180, 213, 219, 221, 222, 223, 224, 225, 226, 227, 229, 231, 232, 233, 234, 554, 557, 958,
+		959, 963, 966, 970, 971, 974, 975, 978, 990, 994, 995, 999, 1014, 1015, 1018, 1030, 1031, 1034, 1038, 1043, 1233 };
+	static const int houses[][4] = {	// house / mausoleum footprints (row0, row1, col0, col1): never thinned out
+		{20,33,89,95}, {50,66,89,95}, {78,83,89,94}, {44,48,63,74}, {64,68,67,71}, {56,60,76,80}, {82,85,51,55} };
+	memset( RavenMap, 0, sizeof( RavenMap ) );
+	for( int r = 0; r < 112; ++r ) for( int c = 0; c < 112; ++c ){
+		if( !RavenMapInArea( r, c ) ) continue;
+		RavenMap[ r ][ c ] = RM_AREA;
+		const int piece = FineMap[ r ][ c ];
+		if( !TileBlockWalking[ piece ] ) continue;
+		bool small = false;
+		for( ushort s : kRavenMapSmall ) if( piece == s ){ small = true; break; }
+		if( small ) for( auto& h : houses ) if( r >= h[0] && r <= h[1] && c >= h[2] && c <= h[3] ){ small = false; break; }
+		if( !small ) RavenMap[ r ][ c ] |= RM_WALL;
+	}
+	// patches of walls smaller than RAVEN_MAP_MIN_CELLS (4-connected) are small obstacles too
+	static short queue[ 112 * 112 ];
+	static bool seen[ 112 ][ 112 ];
+	memset( seen, 0, sizeof( seen ) );
+	for( int r = 0; r < 112; ++r ) for( int c = 0; c < 112; ++c ){
+		if( !( RavenMap[ r ][ c ] & RM_WALL ) || seen[ r ][ c ] ) continue;
+		int head = 0, tail = 0;
+		queue[ tail++ ] = (short)( r * 112 + c ); seen[ r ][ c ] = true;
+		while( head < tail ){
+			const int cell = queue[ head++ ], cr = cell / 112, cc = cell % 112;
+			static const int dr[4] = { 1, -1, 0, 0 }, dc[4] = { 0, 0, 1, -1 };
+			for( int k = 0; k < 4; ++k ){
+				const int nr = cr + dr[k], nc = cc + dc[k];
+				if( nr < 0 || nr >= 112 || nc < 0 || nc >= 112 || seen[ nr ][ nc ] || !( RavenMap[ nr ][ nc ] & RM_WALL ) ) continue;
+				seen[ nr ][ nc ] = true; queue[ tail++ ] = (short)( nr * 112 + nc );
+			}
+		}
+		if( tail < RAVEN_MAP_MIN_CELLS ) for( int i = 0; i < tail; ++i ) RavenMap[ queue[i] / 112 ][ queue[i] % 112 ] &= ~RM_WALL;
+	}
+	// the dotted border: cells outside the area next to it (8 neighbours)
+	for( int r = 0; r < 112; ++r ) for( int c = 0; c < 112; ++c ){
+		if( RavenMap[ r ][ c ] & RM_AREA ) continue;
+		for( int dr = -1; dr <= 1; ++dr ) for( int dc = -1; dc <= 1; ++dc ){
+			const int nr = r + dr, nc = c + dc;
+			if( nr >= 0 && nr < 112 && nc >= 0 && nc < 112 && ( RavenMap[ nr ][ nc ] & RM_AREA ) ) RavenMap[ r ][ c ] |= RM_BORDER;
+		}
+	}
+	RavenMapReady = true;
+}
+
+static bool RavenMapShown( int r, int c )
+{
 	return !IsNotMapOpen || ( FlagMap[ r ][ c ] & CF_128_DISCOVERED );
+}
+
+static bool AutomapCellEdge( int r, int c, int nr, int nc )	// a shown wall cell next to an area cell that is not a wall
+{
+	if( nr < 0 || nr >= 112 || nc < 0 || nc >= 112 ) return false;
+	if( !( RavenMap[ r ][ c ] & RM_WALL ) || ( RavenMap[ nr ][ nc ] & ( RM_WALL | RM_AREA ) ) != RM_AREA ) return false;
+	return RavenMapShown( r, c );
 }
 
 static bool AutomapOnScreen( int x, int y )	// AutomapDrawLine's own bounds
@@ -130,8 +199,9 @@ static void AutomapEdgeRunStep( AutomapEdgeRun& run, bool edge, int x1, int y1, 
 
 static void AutomapDrawCollisionMap()
 {
-	const uchar color = 200;	// AutomapDrawStaticObject's wall colour
-	const int z4 = AutomapZoom4, z8 = AutomapZoom8;
+	if( !RavenMapReady ) RavenMap_Build();
+	const uchar color = 200;	// AutomapDrawStaticObject's wall and dot colour
+	const int z2 = AutomapZoom2, z4 = AutomapZoom4, z8 = AutomapZoom8;
 	int x = 0, y = 0;
 	// edges facing col - 1 (up-right) and col + 1 (down-left): a row runs along row
 	for( int c = 0; c < 112; ++c ){
@@ -152,6 +222,13 @@ static void AutomapDrawCollisionMap()
 			AutomapEdgeRunStep( downRight, AutomapCellEdge( r, c, r + 1, c ), x + z8, y, x, y + z4, color );
 		}
 		AutomapEdgeRunEnd( upLeft, color ); AutomapEdgeRunEnd( downRight, color );
+	}
+	// the dotted border
+	for( int r = 0; r < 112; ++r ) for( int c = 0; c < 112; ++c ){
+		if( !( RavenMap[ r ][ c ] & RM_BORDER ) || !RavenMapShown( r, c ) ) continue;
+		AutoMapIsometricCalc( r, c, x, y );
+		AutomapDrawPoint1( x, y - z2, color ); AutomapDrawPoint1( x - z4, y, color );
+		AutomapDrawPoint1( x + z4, y, color ); AutomapDrawPoint1( x, y + z2, color );
 	}
 }
 
@@ -183,7 +260,7 @@ void InitDungeonAutomapData()
 	case DT_5_CRYPT   : levelAmpFile = "NLevels\\L5Data\\L5.AMP"; break;
 	case DT_6_ABYSS   : levelAmpFile = "NLevels\\L6Data\\L6.AMP"; break;
 	default           :
-		if( Dungeon == DUN_44_RAVENHOLM ) break;	// (fixes) RAVENHOLM MAP: no .AMP, but the explored cells start over below
+		if( Dungeon == DUN_44_RAVENHOLM ){ RavenMapReady = false; break; }	// (fixes) RAVENHOLM MAP: no .AMP, but the explored cells start over below
 		return;
 	}
 
