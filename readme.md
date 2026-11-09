@@ -90,13 +90,16 @@ _________________
 ### TO DO's
 
 - [ ] Come up with proper title for the submod
-- [ ] Add image reference to custom functionalities in readme
+- [ ] Add image reference to custom functionalities in readme / Partially done
 - [ ] Show current debuffs as icons or text infos in UI
 - [ ] Further works on Siegemaster (as of now, it's just baseline)
 - [ ] Rebalance paladin (mostly hammers)
 - [ ] Custom rule for normal mode, allowing to save everywhere (probably same implementation as in Antigrind submod, via GC)
 - [ ] Allow uberbosses in SP (probably also through GC)
 - [ ] Make Midas set actually fully obtainable
+- [ ] Lift ban on moving spells after fully clearing quest area (idea from StArchon/Godroll)
+- [ ] Further improvements to Monster tracking on the minimap
+- [ ] Batch transmutes in at Cain (idea from StArchon/Godroll)
 
 ## Under Consideration
 
@@ -118,6 +121,14 @@ _________________
 - [ ] New monsters (with custom/unique sprites)
 - [ ] Companion/Pet for picking up gold and possibly items
 - [ ] Custom website for submod
+- [ ] Either additonal coloring for loot or some kind of loot filter system
+- [ ] Temporary buff system from Ogden - maybe cooking from ingredients (original idea from Mordor/TH)
+- [ ] Inventory sorting
+- [ ] Allow jogging/run for SM/Terminator
+- [ ] Playtime/Sessions on character selection
+- [ ] Allow teleport in Town
+- [ ] More statpoints for shrooms on each difficulty
+- [ ] Double-pistol/Shield for Pistoleer
 
 <br>
 and more.
