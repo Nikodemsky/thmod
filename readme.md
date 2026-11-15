@@ -129,6 +129,7 @@ _________________
 - [ ] Allow teleport in Town
 - [ ] More statpoints for shrooms on each difficulty
 - [ ] Double-pistol/Shield for Pistoleer
+- [ ] Quick identify-all and repair-all through hotkeys (for example shift+lclick)
 
 <br>
 and more.
