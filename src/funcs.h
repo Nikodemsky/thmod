@@ -2777,6 +2777,11 @@ int GetTraitSpellIcon( TraitId id );
 template<typename... T> __forceinline bool HasTrait(uint playerIndex, T&&... val){ return playerIndex > 3 ? false : has(Players[playerIndex].traits, val...); }
 template<typename... T> __forceinline bool CurTrait(T&&... val){ return has(Players[CurrentPlayerIndex].traits, val...); }
 template<typename... T> __forceinline bool HasTrait(const Player& player, T&&... val) { return has(player.traits, val...); }
+// (thmod) PISTOLEER VOICE (test), Traits.cpp: a few own lines of the Guardian with the Pistoleer trait
+enum TraitVoiceLine { TVL_DUNGEON_ENTRY, TVL_BUTCHER_QUEST, TVL_BUTCHER_KILLED, TVL_COUNT };
+bool TraitVoiceQueue( int line, int delay, bool afterSpeech = false );
+void TraitVoiceUpdate();
+bool IsPistoleerLook( int playerIndex ); // (thmod) PISTOLEER LOOK (Player.cpp)
 
 bool IsMonsterImmuneToMissile(int monsterIndex, int damageType, int playerIndex);
 

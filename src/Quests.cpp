@@ -1366,6 +1366,7 @@ void __fastcall SayMessageOnBossKill(int monsterIndex, int isNetData)
 			return;
 		}
 		Quests[Q_6_THE_BUTCHER].status = QS_3_COMPLETE;
+		if( ! TraitVoiceQueue( TVL_BUTCHER_KILLED, 30 ) ){ // (thmod) Pistoleer's own line instead of the class one
 		PlayerSoundMessageDelay = 30;
 		switch( player.ClassID ){
 		case PC_0_WARRIOR:
@@ -1374,6 +1375,7 @@ void __fastcall SayMessageOnBossKill(int monsterIndex, int isNetData)
 		case PC_4_ROGUE:	SoundMessage = S_701_ROG_80;	break;
 		case PC_2_MAGE:		SoundMessage = S_598_SOR_80;	break;
 		case PC_3_MONK:		SoundMessage = S_918_MONK_80;	break;
+		}
 		}
 		if( isNetData ){
             NetSendCmdQuest( true, Q_6_THE_BUTCHER );

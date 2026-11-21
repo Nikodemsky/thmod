@@ -943,6 +943,16 @@ bool UsesTownAnimations()
 	return Dungeon == DUN_0_TOWN || Dungeon == DUN_117_DARKLORD_HIDEOUT;
 }
 
+// (thmod) PISTOLEER LOOK (test): a Guardian with the Pistoleer trait gets his own sprites (LoadPlayerGFX). Not with the
+// Super Mutant / Enclave soldier game changers, which have their own looks.
+bool IsPistoleerLook( int playerIndex )
+{
+	if( (uint) playerIndex >= PlayersMax_4 ) return false;
+	const Player& player = Players[ playerIndex ];
+	return player.fullClassId == PFC_GUARDIAN && HasTrait( player, TraitId::Pistoleer )
+		&& !(player.gameChanger & BIT(GC_28_SUPERMUTANT)) && !(player.gameChanger & BIT(GC_29_ENCLAVE_SOLDIER));
+}
+
 // (th4) True when this player is DRAWN from the angry (dungeon) cels even though the level
 // itself uses town animations, so the frame counts and walk sub-steps must follow the angry
 // sheets rather than the town ones. Only case: the Assassin's claws+shield look
@@ -1127,6 +1137,26 @@ void __fastcall LoadPlayerGFX( uint playerIndex, int loadingMask )
 			if( File_Open( ttName, &tt, ONE_TRY ) ){
 				File_Close( tt );
 				strcpy( fileName, ttName );
+			}
+		}
+
+		// (thmod) PISTOLEER LOOK (test): a Guardian with the Pistoleer trait is drawn from his own warrior set,
+		// PlrGFX\Warrior\Pistoleer\W<armour><weapon>\W<armour><weapon><anim>.CL2 from TH_ns_assets.mor. Per file, like
+		// Two Towers above: the file of the hero's real armour if the set has it, otherwise the normal file (so far only
+		// the light armour pistol set WLG is made; medium / heavy armour and the bare hands keep the normal look).
+		// The game takes the FRAME COUNTS from the class tables (SetPlrAnims; the Pistoleer fires on frame 10), so each
+		// file has as many frames as the original WLG file of the same name. The files are counted in
+		// SelectPlrAnimation (animation buffers) as well. The Guardian TRN (below) is not applied to them: the set has
+		// its own colours. Multiplayer: nothing to send, every client sees the trait and loads the files itself.
+		bool pistolLook = false;
+		if( animMask != PAF_10_TURNING && IsPistoleerLook( playerIndex ) ){
+			char plName[256];
+			sprintf( plName, "PlrGFX\\%s\\Pistoleer\\%s\\%s%s.CL2", ClassAnimName[classId], look, look, szSuffix );
+			HANDLE pl;
+			if( File_Open( plName, &pl, ONE_TRY ) ){
+				File_Close( pl );
+				strcpy( fileName, plName );
+				pistolLook = true;
 			}
 		}
 
@@ -1525,6 +1555,9 @@ void __fastcall LoadPlayerGFX( uint playerIndex, int loadingMask )
 					SetPlayerTrn(dirAnimPtr, &InquizTrn[2], "X\\plrtrn\\Warrior04blue2beigeandorng2beige2.TRN");
 				}
 			}
+			else if( player.fullClassId == PFC_GUARDIAN && pistolLook ){
+				// (thmod) PISTOLEER LOOK: own colours, no TRN
+			}
 			else if( player.fullClassId == PFC_GUARDIAN && !(player.gameChanger & BIT(GC_28_SUPERMUTANT)) && !(player.gameChanger & BIT(GC_29_ENCLAVE_SOLDIER))){
 				if (armor == 'L') {
 					SetPlayerTrn(dirAnimPtr, &GuardTrn[0], "X\\plrtrn\\Warrior03guardian2lite1.TRN");
@@ -1731,6 +1764,20 @@ uint __fastcall SelectPlrAnimation(char* animType)
 				if( sizeLoaded <= fileSize ){
 					sizeLoaded = fileSize;
 				}
+			}
+		}
+	}
+
+	// (thmod) PISTOLEER LOOK: the Guardian's own warrior set (LoadPlayerGFX swaps it in) must fit these buffers too
+	// (LoadFileWithMem does not check the size). All three armours; counted whether or not anyone uses it.
+	for( auto armorAnim: ArmorAnim ) for( auto& weaponAnim: WeaponAnims ){
+		sprintf( classAnim, "%c%c%c", ClassAnim[PC_0_WARRIOR], armorAnim, weaponAnim.select );
+		sprintf( fileName, "PlrGFX\\%s\\Pistoleer\\%s\\%s%s.CL2", ClassAnimName[PC_0_WARRIOR], classAnim, classAnim, animType );
+		if( File_Open( fileName, &animFile, ONE_TRY ) ){
+			uint fileSize = File_GetSize( animFile, 0 );
+			File_Close( animFile );
+			if( sizeLoaded <= fileSize ){
+				sizeLoaded = fileSize;
 			}
 		}
 	}
@@ -7632,6 +7679,7 @@ void ProcessPlayers()
 			default: PlayGlobalSound( SoundMessage ); break;
 		}
 	}
+	TraitVoiceUpdate(); // (thmod) Pistoleer voice lines (test)
 	if( !CooldownDecDelay ){
         for( auto& cooldown : player.cooldowns ){
             if( cooldown > 0 ){
@@ -8426,6 +8474,10 @@ void PlayDungMsgs()
 
 	Player& player = Players[CurrentPlayerIndex];
 	if( Dungeon == DUN_1_CHURCH_1 && ! player.dungeonVisited[DUN_1_CHURCH_1] && !(player.DungeonMessageFlags1 & 1) ){
+		if( TraitVoiceQueue( TVL_DUNGEON_ENTRY, 40 ) ){ // (thmod) Pistoleer's own line instead of the warrior's
+			player.DungeonMessageFlags1 |= 1;
+			return;
+		}
 		PlayerSoundMessageDelay = 40;
 		switch (player.fullClassId ){
 		case PFC_EXECUTIONER:	SoundMessage = S_1125_EXE_ENTER_LVL1;	break;
