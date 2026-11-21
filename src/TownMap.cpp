@@ -1776,7 +1776,7 @@ bool WoundedGuyGreeting (int playerIndex, int townerIndex, bool needAction = tru
 			towner.field_AC = 3;
 			StartSpeech(SP_63);
 			if( playerIndex == CurrentPlayerIndex ){
-				TraitVoiceQueue( TVL_BUTCHER_QUEST, 10, true ); // (thmod) the Pistoleer answers once the story is over
+				TraitVoiceQueue( TVL_BUTCHER_QUEST, 10, true ); // (thmod) Siegemaster / Pistoleer answers once the story is over
 			}
             NetSendCmdQuest( true, Q_6_THE_BUTCHER );
 			towner.IsTownerActionSelected = true;

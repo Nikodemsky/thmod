@@ -1086,6 +1086,48 @@ bool IsSiegemaster( int playerIndex )
     return MaxCountOfPlayersInGame == 1 && HasTrait( playerIndex, TraitId::Siegemaster );
 }
 
+// (thmod) SIEGEMASTER CROSSBOW SOUND (test): a Siegemaster Guardian shooting a crossbow (an IC_3_BOW whose base item
+// has Name2 "Crossbow", the same test as the smart drop in Item.cpp) is heard with Sfx\Siegemaster\Crossbow.wav
+// from TH_ns_assets.mor instead of the five bow sounds (PM_DoRangedAttack). A normal (buffered, SF_2_MIX) sound,
+// loaded on the first shot and freed with the rest in FreeAllSound. No file -> false, the bow sounds play.
+static Sound SiegeCrossbowSound;
+static const char* const SiegeCrossbowFile = "Sfx\\Siegemaster\\Crossbow.wav";
+
+bool SiegeCrossbowShotSound( int playerIndex )
+{
+    if( (uint) playerIndex >= PlayersMax_4 ) return false;
+    Player& player = Players[ playerIndex ];
+    if( player.fullClassId != PFC_GUARDIAN || ! IsSiegemaster( playerIndex ) ) return false;
+    bool crossbow = false;
+    for( int hand: { IS_LeftHand, IS_RightHand } ){
+        const Item& item = player.OnBodySlots[ hand ];
+        if( item.ItemCode == IC_3_BOW ){
+            const char* name2 = BaseItems[ item.baseItemIndex ].Name2;
+            crossbow = name2 && ! strcmpi( name2, "crossbow" );
+            break;
+        }
+    }
+    if( ! crossbow ) return false;
+    static int fileThere = -1; // TH_ns_assets.mor is opened at start-up, so one look is enough
+    if( fileThere < 0 ){
+        HANDLE file;
+        fileThere = File_Open( SiegeCrossbowFile, &file, ONE_TRY ) ? 1 : 0;
+        if( fileThere ) File_Close( file );
+    }
+    if( ! fileThere ) return false;
+    if( ! SiegeCrossbowSound.name[ 0 ] ){
+        strcpy( SiegeCrossbowSound.name, SiegeCrossbowFile );
+        SiegeCrossbowSound.flag = SF_2_MIX;
+    }
+    LoadAndPlaySoundFile( SiegeCrossbowSound, 1, player.Row, player.Col );
+    return true;
+}
+
+void SiegeSoundsFree()
+{
+    FreeSoundData( SiegeCrossbowSound );
+}
+
 // The Siegemaster icons are frames appended to BOTH icon sheets: SpelIcon.CEL (56 px, panel and
 // trait list) and SpellI2.CEL (37 px, spell book) are drawn with the same index. Use the new frame
 // only when both sheets already have it, so the game runs with the stock files too.
@@ -1933,19 +1975,19 @@ int __stdcall DialogSelectTrait( HWND hdlg, unsigned int Msg, WPARAM wParam, LPA
     return result;
 }
 
-// (thmod) PISTOLEER VOICE (test): the Guardian with the Pistoleer trait has his own lines for a few moments, read
-// from TH_ns_assets.mor (Sfx\Pistoleer\*.wav, 22050 Hz 16-bit mono like the warrior's own speech). A line whose
-// file is not there is not queued (TraitVoiceQueue returns false) and the caller plays the normal line.
+// (thmod) SIEGEMASTER / PISTOLEER VOICE (test): the Guardian with the Siegemaster or the Pistoleer trait has his own
+// lines for a few moments, read from TH_ns_assets.mor (Sfx\Siegemaster\*.wav / Sfx\Pistoleer\*.wav, 22050 Hz 16-bit
+// mono like the warrior's own speech). A line whose file is not there is not queued (TraitVoiceQueue returns false) and the caller plays the normal line.
 // Played like any hero speech (LoadAndPlaySoundFile -> PlaySpeech, streamed, SF_1_SOLO), so it cuts a speech that is
 // still playing -- afterSpeech makes it wait until the current speech (CurSpeechHandle) has ended.
 // delay is in game ticks (ProcessPlayers, 20 a second), counted after that wait. Only the local hero speaks
 // (CurrentPlayerIndex), nothing goes over the net. Not saved; a line still waiting is dropped if the current hero
 // no longer has the voice (another hero loaded meanwhile).
-// The same set of moments as the Siegemaster test lines (full branch), so both can share this code later.
 static const char* TraitVoiceFolder( int playerIndex )
 {
     if( (uint) playerIndex >= PlayersMax_4 ) return nullptr;
     const Player& player = Players[ playerIndex ];
+    if( player.fullClassId == PFC_GUARDIAN && IsSiegemaster( playerIndex ) ) return "Sfx\\Siegemaster\\";
     if( player.fullClassId == PFC_GUARDIAN && HasTrait( player, TraitId::Pistoleer ) ) return "Sfx\\Pistoleer\\";
     return nullptr;
 }

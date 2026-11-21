@@ -2812,7 +2812,7 @@ int GetTraitSpellIcon( TraitId id );
 template<typename... T> __forceinline bool HasTrait(uint playerIndex, T&&... val){ return playerIndex > 3 ? false : has(Players[playerIndex].traits, val...); }
 template<typename... T> __forceinline bool CurTrait(T&&... val){ return has(Players[CurrentPlayerIndex].traits, val...); }
 template<typename... T> __forceinline bool HasTrait(const Player& player, T&&... val) { return has(player.traits, val...); }
-// (thmod) PISTOLEER VOICE (test), Traits.cpp: a few own lines of the Guardian with the Pistoleer trait
+// (thmod) SIEGEMASTER / PISTOLEER VOICE (test), Traits.cpp: a few own lines of the Guardian with either trait
 enum TraitVoiceLine { TVL_DUNGEON_ENTRY, TVL_BUTCHER_QUEST, TVL_BUTCHER_KILLED, TVL_COUNT };
 bool TraitVoiceQueue( int line, int delay, bool afterSpeech = false );
 void TraitVoiceUpdate();
@@ -2834,6 +2834,8 @@ constexpr int SiegeIconTrait       = 255;
 constexpr int SiegeIconBombardier  = 256; // placeholder "B1"
 constexpr int SiegeIconTrapper     = 257; // placeholder "T1"
 bool IsSiegemaster( int playerIndex );
+bool SiegeCrossbowShotSound( int playerIndex ); // (thmod) Siegemaster's own crossbow sound (test), Traits.cpp
+void SiegeSoundsFree(); // (thmod) FreeAllSound
 bool IsSiegeMinion( int baseMonsterIndex );
 int SiegeSpellIcon( int newIcon, int fallbackIcon );
 const char* SiegeMinionAnimFile( int baseMonsterIndex, int animationIndex );

@@ -153,9 +153,60 @@ bool RightSwapAllowed(int playerIndex, Item& item)
 int SigilButtonFrame = 1;  // Current frame for sigil button animation
 bool SigilButtonPressed = false;  // Optional: if you need pressed state
 bool IsSigilInventoryOpen = false;  // Tracks if sigil inventory is open
+//----- (thmod) DEV ARMOUR LOOK ------------------------------------------------------------------
+// config.ini "set DevArmorVisual on": a text button in the bottom strip of the inventory (between the gold and the
+// sigil button) that draws the own hero in another armour -- as worn / light / medium / heavy, in turn. For trying
+// out armour art (the Siegemaster set, Player.cpp LoadPlayerGFX); looks only, for this session, not saved.
+int DevArmorVisual = -1;
+static const char* const DevArmorVisualText[ 4 ] = { "[armour: as worn]", "[armour: light]", "[armour: medium]", "[armour: heavy]" };
+
+static const char* DevArmorButtonText()
+{
+	return DevArmorVisualText[ DevArmorVisual + 1 ];
+}
+
+// left x and text baseline y, in DrawText coordinates (= cursor coordinates); right-aligned before the sigil button
+static void DevArmorButtonPos( int& x, int& y )
+{
+	x = InventoryPanelRect.Right - 56 - GetTextWidth( DevArmorButtonText() );
+	y = InventoryPanelRect.Top + 448; // the gold row
+}
+
+static bool IsMouseOnDevArmorButton()
+{
+	int x, y;
+	DevArmorButtonPos( x, y );
+	return CursorX >= x && CursorX <= x + GetTextWidth( DevArmorButtonText() ) && CursorY >= y - 12 && CursorY <= y + 3;
+}
+
+static void DevSwitchArmorVisual()
+{
+	Player& player = Players[ CurrentPlayerIndex ];
+	if( player.CurAction >= PCA_10_NEW_LEVEL || player.CurAction == PCA_8_DEATH ) return;
+	DevArmorVisual = DevArmorVisual >= 2 ? -1 : DevArmorVisual + 1;
+	// the same reload as a change of the worn look (Item.cpp, after the appearance is recalculated)
+	player.LoadPlayerAnimationMask = PAF_0_NO;
+	LoadPlayerGFX( CurrentPlayerIndex, PAF_1_STAY );
+	SetPlrAnims( CurrentPlayerIndex );
+	if( player.CurAction > PCA_3_WALK_HORISONTAL ){
+		StartStand( CurrentPlayerIndex, player.dir );
+		ClearPlrPVars( CurrentPlayerIndex );
+	}else if( player.CurAction != PCA_0_STAND ){
+		ContinueWalk( CurrentPlayerIndex );
+	}else{
+		ContinueStay( CurrentPlayerIndex );
+	}
+	PlayGlobalSound( S_75_I_TITLEMOV );
+}
+
 //----- (0042118B) --------------------------------------------------------
 void Inventory_LButtonClick()
 {
+	if( DevArmorVisualOn && Cur.GraphicsID < CM_12_ITEMS_PICS_START && IsMouseOnDevArmorButton() ){ // (thmod) DEV ARMOUR LOOK
+		DevSwitchArmorVisual();
+		return;
+	}
+
 	// --- Sigil button click check ---
 	if (SigilButtonCEL)
 	{
@@ -1190,6 +1241,16 @@ void DrawINVPanel()
     int gold = Players[CurrentPlayerIndex].TotalGold;
     sprintf(dest, L("gold: %i"), gold); // (th4) localizable
     DrawLevelInfoText(InventoryPanelRect.Right - 300, InventoryPanelRect.Top + 448, dest, 3);
+	if( DevArmorVisualOn ){ // (thmod) DEV ARMOUR LOOK
+		int x, y;
+		DevArmorButtonPos( x, y );
+		bool over = IsMouseOnDevArmorButton();
+		DrawText( x, y, 0, DevArmorButtonText(), over ? C_3_Gold : C_4_Orange );
+		if( over ){
+			Tooltip_SetOffsetLeft();
+			Tooltip_AddLine( "switch armour visual (dev): as worn / light / medium / heavy", C_0_White );
+		}
+	}
 	// (rt) --- Sigil button ---
 	if (SigilButtonCEL && GameMode != GM_CLASSIC 
 		&& GameMode != GM_COLISEUM 

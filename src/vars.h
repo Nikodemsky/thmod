@@ -1613,6 +1613,8 @@ extern bool	SaveAlwaysEnabled;
 extern bool PanelsOnCenter;
 extern bool	DropUnderMonsters;
 extern bool DevToolsOn; // (thmod) Config.cpp; Perks.cpp DEV TOOLS
+extern bool DevArmorVisualOn; // (thmod) Config.cpp; InventoryPanel.cpp DEV ARMOUR LOOK
+extern int DevArmorVisual; // (thmod) InventoryPanel.cpp: -1 = the armour worn, 0 / 1 / 2 = drawn as light / medium / heavy
 extern bool HydraLogOn; // (thmod) Config.cpp; Missile.cpp HYDRA LOG
 extern BaseAction BaseActions[ 100 ];
 extern bool	IsFullScreen;

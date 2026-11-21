@@ -1008,6 +1008,12 @@ void __fastcall LoadPlayerGFX( uint playerIndex, int loadingMask )
 	}
 	char armor  = ArmorAnim  [ UseLookIndex && Handler1 != DisableInputWindowProc ? ArmorIndex  : appearance >> 4 ];
 	char weapon = WeaponAnims[ UseLookIndex && Handler1 != DisableInputWindowProc ? WeaponIndex : appearance & 0xF ].select;
+	// (thmod) DEV ARMOUR LOOK (InventoryPanel.cpp, "set DevArmorVisual on"): the own hero drawn in another armour.
+	// Looks only: the armour worn, its stats and what other players see are unchanged.
+	if( DevArmorVisualOn && (uint) DevArmorVisual < countof(ArmorAnim) && playerIndex == (uint) CurrentPlayerIndex
+	 && !( UseLookIndex && Handler1 != DisableInputWindowProc ) ){
+		armor = ArmorAnim[ DevArmorVisual ];
+	}
 
 	char look[16], look2[16] = {0};
 	if( weapon == 'G' && ClassAnim[classId] != 'W' ) weapon = 'N';
@@ -1137,6 +1143,29 @@ void __fastcall LoadPlayerGFX( uint playerIndex, int loadingMask )
 			if( File_Open( ttName, &tt, ONE_TRY ) ){
 				File_Close( tt );
 				strcpy( fileName, ttName );
+			}
+		}
+
+		// (thmod) SIEGEMASTER LOOK (test): a Guardian with the Siegemaster trait is drawn from his own warrior set,
+		// PlrGFX\Warrior\Siegemaster\W<armour><weapon>\W<armour><weapon><anim>.CL2 from TH_ns_assets.mor.
+		// Per file, like Two Towers: the file of the hero's real armour (L / M / H) first, then the medium armour
+		// one ('M') for an armour the set does not have yet, then the normal file of the hero's real armour.
+		// The game takes the FRAME COUNTS from the class tables, so each file has as many frames as the original
+		// warrior file of the same name. The files are counted in SelectPlrAnimation (animation buffers) as well.
+		// The Guardian TRN (below) is not applied to them: the set has its own colours.
+		bool siegeLook = false;
+		if( player.fullClassId == PFC_GUARDIAN && IsSiegemaster( playerIndex ) && animMask != PAF_10_TURNING ){
+			const char tryArmor[ 2 ] = { armor, 'M' };
+			for( int t = 0; t < ( armor == 'M' ? 1 : 2 ) && ! siegeLook; ++t ){
+				char smName[256];
+				sprintf( smName, "PlrGFX\\%s\\Siegemaster\\%c%c%c\\%c%c%c%s.CL2", ClassAnimName[classId],
+					ClassAnim[classId], tryArmor[t], weapon, ClassAnim[classId], tryArmor[t], weapon, szSuffix );
+				HANDLE sm;
+				if( File_Open( smName, &sm, ONE_TRY ) ){
+					File_Close( sm );
+					strcpy( fileName, smName );
+					siegeLook = true;
+				}
 			}
 		}
 
@@ -1555,8 +1584,8 @@ void __fastcall LoadPlayerGFX( uint playerIndex, int loadingMask )
 					SetPlayerTrn(dirAnimPtr, &InquizTrn[2], "X\\plrtrn\\Warrior04blue2beigeandorng2beige2.TRN");
 				}
 			}
-			else if( player.fullClassId == PFC_GUARDIAN && pistolLook ){
-				// (thmod) PISTOLEER LOOK: own colours, no TRN
+			else if( player.fullClassId == PFC_GUARDIAN && ( siegeLook || pistolLook ) ){
+				// (thmod) SIEGEMASTER / PISTOLEER LOOK: own colours, no TRN
 			}
 			else if( player.fullClassId == PFC_GUARDIAN && !(player.gameChanger & BIT(GC_28_SUPERMUTANT)) && !(player.gameChanger & BIT(GC_29_ENCLAVE_SOLDIER))){
 				if (armor == 'L') {
@@ -1764,6 +1793,20 @@ uint __fastcall SelectPlrAnimation(char* animType)
 				if( sizeLoaded <= fileSize ){
 					sizeLoaded = fileSize;
 				}
+			}
+		}
+	}
+
+	// (thmod) SIEGEMASTER LOOK: the Guardian's own warrior set (LoadPlayerGFX swaps it in) must fit these buffers too
+	// (LoadFileWithMem does not check the size). All three armours; counted whether or not anyone uses it.
+	for( auto armorAnim: ArmorAnim ) for( auto& weaponAnim: WeaponAnims ){
+		sprintf( fileName, "PlrGFX\\%s\\Siegemaster\\%c%c%c\\%c%c%c%s.CL2", ClassAnimName[PC_0_WARRIOR],
+			ClassAnim[PC_0_WARRIOR], armorAnim, weaponAnim.select, ClassAnim[PC_0_WARRIOR], armorAnim, weaponAnim.select, animType );
+		if( File_Open( fileName, &animFile, ONE_TRY ) ){
+			uint fileSize = File_GetSize( animFile, 0 );
+			File_Close( animFile );
+			if( sizeLoaded <= fileSize ){
+				sizeLoaded = fileSize;
 			}
 		}
 	}
@@ -6796,7 +6839,9 @@ bool __fastcall PM_DoRangedAttack( int playerIndex )
 					}
 				}
 			else if (missile < MI_139_THROWING_KNIFE) {// (x)bow sfx
-				PlayLocalSound(multiArrowFlag ? S_12_STING1 : (1710 + RNG(5)), player.Row, player.Col);
+				if( multiArrowFlag || ! SiegeCrossbowShotSound( playerIndex ) ){ // (thmod) Siegemaster's own crossbow sound
+					PlayLocalSound(multiArrowFlag ? S_12_STING1 : (1710 + RNG(5)), player.Row, player.Col);
+				}
 			}
 		}
 
@@ -7645,7 +7690,7 @@ void ProcessPlayers()
 			default: PlayGlobalSound( SoundMessage ); break;
 		}
 	}
-	TraitVoiceUpdate(); // (thmod) Pistoleer voice lines (test)
+	TraitVoiceUpdate(); // (thmod) Siegemaster / Pistoleer voice lines (test)
 	if( !CooldownDecDelay ){
         for( auto& cooldown : player.cooldowns ){
             if( cooldown > 0 ){
@@ -8454,7 +8499,7 @@ void PlayDungMsgs()
 
 	Player& player = Players[CurrentPlayerIndex];
 	if( Dungeon == DUN_1_CHURCH_1 && ! player.dungeonVisited[DUN_1_CHURCH_1] && !(player.DungeonMessageFlags1 & 1) ){
-		if( TraitVoiceQueue( TVL_DUNGEON_ENTRY, 40 ) ){ // (thmod) Pistoleer's own line instead of the warrior's
+		if( TraitVoiceQueue( TVL_DUNGEON_ENTRY, 40 ) ){ // (thmod) Siegemaster's / Pistoleer's own line instead of the warrior's
 			player.DungeonMessageFlags1 |= 1;
 			return;
 		}

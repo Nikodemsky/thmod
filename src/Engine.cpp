@@ -212,6 +212,7 @@ void FreeAllSound()
 {
 	DupSoundUpdate(1);
 	for( int i = 0; i < S_COUNT; i++ ) if( Sounds[i].buffer ) FreeSoundData(Sounds[i]);
+	SiegeSoundsFree(); // (thmod) Siegemaster's own sounds (Traits.cpp)
 	FreeMonsterSounds();
 	StopSpeech();
 	StopMusic();

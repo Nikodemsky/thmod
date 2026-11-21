@@ -89,6 +89,7 @@ bool OriginalMenu = true;
 bool AllSound = true;
 bool DropUnderMonsters = false;
 bool DevToolsOn = false; // (thmod) "set DevTools on": developer buttons in the synergy panel, Perks.cpp DEV TOOLS
+bool DevArmorVisualOn = false; // (thmod) "set DevArmorVisual on": armour look switch in the inventory, InventoryPanel.cpp
 bool HydraLogOn = false; // (thmod) debug: "set HydraLog on" -> TH4_hydra.log, Missile.cpp HYDRA LOG
 bool IsFullScreen = false;
 bool IsThException = false;
@@ -248,6 +249,7 @@ ConfigLine ConfigStructure[] = {
 #endif
 	{ cfgString, 0, "dropundermonsters", 0, &cfg<DropUnderMonsters>, OFF },
 	{ cfgString, 0, "DevTools", 0, &cfg<DevToolsOn>, OFF }, // (thmod) developer buttons in the synergy panel
+	{ cfgString, 0, "DevArmorVisual", 0, &cfg<DevArmorVisualOn>, OFF }, // (thmod) armour look switch in the inventory
 	{ cfgString, 0, "HydraLog", 0, &cfg<HydraLogOn>, OFF }, // (thmod) debug log of the Hydramancer's hydras
 	{ cfgString, MO_LIST, "Fullscreen", 0, &cfg<IsFullScreen>, OFF },
 	{ cfgString, MO_BOOL, "filter", "Texture filter", &cfg<FilteringMode> },
