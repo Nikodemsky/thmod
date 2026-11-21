@@ -1932,3 +1932,64 @@ int __stdcall DialogSelectTrait( HWND hdlg, unsigned int Msg, WPARAM wParam, LPA
     
     return result;
 }
+
+// (thmod) PISTOLEER VOICE (test): the Guardian with the Pistoleer trait has his own lines for a few moments, read
+// from TH_ns_assets.mor (Sfx\Pistoleer\*.wav, 22050 Hz 16-bit mono like the warrior's own speech). A line whose
+// file is not there is not queued (TraitVoiceQueue returns false) and the caller plays the normal line.
+// Played like any hero speech (LoadAndPlaySoundFile -> PlaySpeech, streamed, SF_1_SOLO), so it cuts a speech that is
+// still playing -- afterSpeech makes it wait until the current speech (CurSpeechHandle) has ended.
+// delay is in game ticks (ProcessPlayers, 20 a second), counted after that wait. Only the local hero speaks
+// (CurrentPlayerIndex), nothing goes over the net. Not saved; a line still waiting is dropped if the current hero
+// no longer has the voice (another hero loaded meanwhile).
+// The same set of moments as the Siegemaster test lines (full branch), so both can share this code later.
+static const char* TraitVoiceFolder( int playerIndex )
+{
+    if( (uint) playerIndex >= PlayersMax_4 ) return nullptr;
+    const Player& player = Players[ playerIndex ];
+    if( player.fullClassId == PFC_GUARDIAN && HasTrait( player, TraitId::Pistoleer ) ) return "Sfx\\Pistoleer\\";
+    return nullptr;
+}
+static const char* const TraitVoiceFile[ TVL_COUNT ] = {
+    "DungeonEntry.wav",     // TVL_DUNGEON_ENTRY:  first entry to church level 1 (PlayDungMsgs)
+    "ButcherQuest.wav",     // TVL_BUTCHER_QUEST:  after the wounded townsman's story (WoundedGuyGreeting)
+    "ButcherKilled.wav",    // TVL_BUTCHER_KILLED: the Butcher is dead (SayMessageOnBossKill) -- no file yet
+};
+static Sound TraitVoiceSound;
+static char TraitVoicePath[ 64 ];
+static int TraitVoicePending = -1;
+static int TraitVoiceDelay = 0;
+static bool TraitVoiceAfterSpeech = false;
+
+bool TraitVoiceQueue( int line, int delay, bool afterSpeech )
+{
+    if( (uint) line >= TVL_COUNT ) return false;
+    const char* folder = TraitVoiceFolder( CurrentPlayerIndex );
+    if( ! folder ) return false;
+    char path[ 64 ];
+    sprintf( path, "%s%s", folder, TraitVoiceFile[ line ] );
+    HANDLE file;
+    if( ! File_Open( path, &file, ONE_TRY ) ) return false;
+    File_Close( file );
+    strcpy( TraitVoicePath, path );
+    TraitVoicePending = line;
+    TraitVoiceDelay = delay;
+    TraitVoiceAfterSpeech = afterSpeech;
+    return true;
+}
+
+// Called every game tick from ProcessPlayers.
+void TraitVoiceUpdate()
+{
+    if( TraitVoicePending < 0 ) return;
+    if( ! TraitVoiceFolder( CurrentPlayerIndex ) ){
+        TraitVoicePending = -1;
+        return;
+    }
+    if( TraitVoiceAfterSpeech && CurSpeechHandle ) return; // the townsman is still talking
+    TraitVoiceAfterSpeech = false;
+    if( TraitVoiceDelay > 0 ){ --TraitVoiceDelay; return; }
+    strcpy( TraitVoiceSound.name, TraitVoicePath );
+    TraitVoiceSound.flag = SF_1_SOLO;
+    TraitVoicePending = -1;
+    LoadAndPlaySoundFile( TraitVoiceSound, 0, 0, 0 );
+}
