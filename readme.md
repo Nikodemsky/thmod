@@ -146,6 +146,12 @@ and more.
 
 _________________
 
+### Known issues
+
+* Possible issues on Cosmic desktop Enviroment (linux); might be fixed later, for now use "Emulate desktop" option for your compability layer of choosing (be it Proton or Wine)
+
+_________________
+
 ### Roadmap
 
 Currently on the scope:
