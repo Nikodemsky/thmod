@@ -130,6 +130,8 @@ _________________
 - [ ] More statpoints for shrooms on each difficulty
 - [ ] Double-pistol/Shield for Pistoleer
 - [ ] Quick identify-all and repair-all through hotkeys (for example shift+lclick)
+- [ ] Allow destroying barrels with arrows in normal diff ([via suggestion on TH4 Discord](https://discord.com/channels/1261720897975357460/1290074250853748779/1575349238483648533))
+- [ ] Battle log ([via suggestion on TH4 Discord](https://discord.com/channels/1261720897975357460/1290074250853748779/1575430028798468129))
 
 <br>
 and more.
@@ -146,12 +148,19 @@ and more.
 
 _________________
 
+### Known issues
+
+* Possible issues on Cosmic desktop Enviroment (linux); might be fixed later, for now use "Emulate desktop" option for your compability layer of choosing (be it Proton or Wine)
+
+_________________
+
 ### Roadmap
 
 Currently on the scope:
 
 1. Visualization of debuffs
 2. Small changes - ubers in SP, custom rule for normal mode, Midas set
-3. Siegemaster
+3. Siegemaster // starting with custom sprites
+4. Custom sprites for pistoleer (including custom casting animations)
 
 \+ sometime in the future, update mod base along with newly provided source (for now latest is v.744).
