@@ -130,6 +130,8 @@ _________________
 - [ ] More statpoints for shrooms on each difficulty
 - [ ] Double-pistol/Shield for Pistoleer
 - [ ] Quick identify-all and repair-all through hotkeys (for example shift+lclick)
+- [ ] Allow destroying barrels with arrows in normal diff ([via suggestion on TH4 Discord](https://discord.com/channels/1261720897975357460/1290074250853748779/1575349238483648533))
+- [ ] Battle log ([via suggestion on TH4 Discord](https://discord.com/channels/1261720897975357460/1290074250853748779/1575430028798468129))
 
 <br>
 and more.
