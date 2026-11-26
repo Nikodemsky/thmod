@@ -1926,6 +1926,9 @@ static bool TraitVoiceAfterSpeech = false;
 bool TraitVoiceQueue( int line, int delay, bool afterSpeech )
 {
     if( (uint) line >= TVL_COUNT ) return false;
+    // (thmod) the Pistoleer no longer uses these extra queued lines (his first test set, removed): he speaks only
+    // through the warrior lines he replaces by sound id (TraitVoiceOverride below), so no old file can play.
+    if( HasTrait( CurrentPlayerIndex, TraitId::Pistoleer ) ) return false;
     const char* folder = TraitVoiceFolder( CurrentPlayerIndex );
     if( ! folder ) return false;
     char path[ 64 ];
@@ -1972,8 +1975,14 @@ static const TraitVoiceLineFile TraitVoiceLines[] = {
     { S_738_WAR_38,  "InventoryFull.wav" },
     { S_739_WAR_15B, "InventoryFull.wav" },
     { S_766_WAR_37,  "CantDoThat.wav"    }, // "I can't do that" -- spell / skill still on cooldown
+    { S_736_WAR_13,  "CantDoThat.wav"    }, // "I can't use this... yet" -- stats too low for the item
+    { S_753_WAR_24,  "CantDoThat.wav"    }, // "I can't open this... yet" -- Ogden's quest chest
+    { S_756_WAR_27,  "CantDoThat.wav"    }, // "I can't cast that here" -- spell not allowed here (town)
+    { S_763_WAR_34,  "CantDoThat.wav"    }, // "I don't have a spell ready"
+    { S_772_WAR_43,  "CantDoThat.wav"    }, // "I can't get there from here" -- level too low for the portal / stairs
     { S_798_WAR_69,  "Hit.wav"           }, // got hit: both warrior variants (RandomizeSound)
     { S_799_WAR_69B, "Hit.wav"           },
+    { S_797_WAR_68,  "Hit.wav"           }, // "Ahh!" -- standing on a burning cross
     { S_832_WAR_96B, "ChurchEntry.wav"   }, // "The sanctity of this place has been fouled" -- first entry to church 1
 };
 static const char* const TraitVoiceFolders[] = { "Sfx\\Pistoleer\\", "Sfx\\Siegemaster\\" };
