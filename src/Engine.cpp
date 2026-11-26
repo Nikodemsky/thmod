@@ -98,6 +98,10 @@ bool __fastcall SoundPos(int row, int col, int& maxDelta, int& angle)
 void __fastcall PlayGlobalSound(int soundIndex)
 {
 	soundIndex = RandomizeSound(soundIndex);
+	if( Sound* own = TraitVoiceOverride( soundIndex, CurrentPlayerIndex ) ){ // (thmod) the hero's own recording of the line
+		LoadAndPlaySoundFile( *own, 0, 0, 0 );
+		return;
+	}
 	LoadAndPlaySoundFile(Sounds[soundIndex], 0, 0, 0);
 }
 
@@ -179,6 +183,10 @@ int __fastcall RandomizeSound(int sound)
 void __fastcall PlayLocalSound(int soundIndex, int row, int col)
 {
 	soundIndex = RandomizeSound(soundIndex);
+	if( Sound* own = TraitVoiceOverrideAt( soundIndex, row, col ) ){ // (thmod) the hero's own recording of the line
+		LoadAndPlaySoundFile( *own, 1, row, col );
+		return;
+	}
 	Sound& sound = Sounds[soundIndex];
 	if( soundIndex >= S_0_WALK1 && soundIndex <= S_3_WALK4 && sound.buffer ){
 		sound.lastPlayTime = 0;
@@ -213,6 +221,7 @@ void FreeAllSound()
 	DupSoundUpdate(1);
 	for( int i = 0; i < S_COUNT; i++ ) if( Sounds[i].buffer ) FreeSoundData(Sounds[i]);
 	FreeMonsterSounds();
+	TraitVoiceFree(); // (thmod) the heroes' own recordings (Traits.cpp)
 	StopSpeech();
 	StopMusic();
 	StopAmbient();

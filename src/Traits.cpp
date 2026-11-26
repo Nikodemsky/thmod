@@ -1956,3 +1956,70 @@ void TraitVoiceUpdate()
     TraitVoicePending = -1;
     LoadAndPlaySoundFile( TraitVoiceSound, 0, 0, 0 );
 }
+
+// (thmod) PISTOLEER VOICE (test), part 2: the hero's own recording of a WARRIOR line, chosen by the sound id the game
+// asks for -- so it plays exactly where and when the warrior's line would (PlayGlobalSound / PlayLocalSound, Engine.cpp).
+// Same folders as above (TraitVoiceFolder); a line whose file is not in TH_ns_assets.mor keeps the warrior's own.
+// The original sound's flag is kept (speech stays streamed SOLO, the hit grunt stays a mixed buffered sound).
+// Files: 22050 Hz 16-bit mono, levelled to the warrior lines (about -13 LUFS, peaks just under full scale).
+struct TraitVoiceLineFile { int soundIndex; const char* file; };
+static const TraitVoiceLineFile TraitVoiceLines[] = {
+    { S_724_WAR_01,  "ChamberOfBone.wav" }, // book of the Chamber of Bone quest (StartSpeech)
+    { S_731_WAR_47,  "BadFeeling.wav"    }, // "I've got a bad feeling about this" -- the wounded townsman (Butcher quest)
+    { S_776_WAR_47,  "BadFeeling.wav"    },
+    { S_732_WAR_09,  "SlainHero.wav"     }, // "Rest in peace, my friend" -- the Slain Hero
+    { S_737_WAR_14,  "InventoryFull.wav" }, // no room in the inventory: all three warrior variants (RandomizeSound)
+    { S_738_WAR_38,  "InventoryFull.wav" },
+    { S_739_WAR_15B, "InventoryFull.wav" },
+    { S_766_WAR_37,  "CantDoThat.wav"    }, // "I can't do that" -- spell / skill still on cooldown
+    { S_798_WAR_69,  "Hit.wav"           }, // got hit: both warrior variants (RandomizeSound)
+    { S_799_WAR_69B, "Hit.wav"           },
+    { S_832_WAR_96B, "ChurchEntry.wav"   }, // "The sanctity of this place has been fouled" -- first entry to church 1
+};
+static const char* const TraitVoiceFolders[] = { "Sfx\\Pistoleer\\", "Sfx\\Siegemaster\\" };
+static Sound TraitVoiceOwn[ countof(TraitVoiceFolders) ][ countof(TraitVoiceLines) ];
+static signed char TraitVoiceOwnThere[ countof(TraitVoiceFolders) ][ countof(TraitVoiceLines) ]; // 0 unknown, 1 yes, -1 no
+
+Sound* TraitVoiceOverride( int soundIndex, int playerIndex )
+{
+    const char* folder = TraitVoiceFolder( playerIndex );
+    if( ! folder || (uint) soundIndex >= S_COUNT ) return nullptr;
+    int f = 0;
+    while( f < (int) countof(TraitVoiceFolders) && strcmp( TraitVoiceFolders[ f ], folder ) ) ++f;
+    if( f == (int) countof(TraitVoiceFolders) ) return nullptr;
+    for( int l = 0; l < (int) countof(TraitVoiceLines); ++l ){
+        if( TraitVoiceLines[ l ].soundIndex != soundIndex ) continue;
+        Sound& own = TraitVoiceOwn[ f ][ l ];
+        signed char& there = TraitVoiceOwnThere[ f ][ l ];
+        if( ! there ){ // TH_ns_assets.mor is opened at start-up, so one look is enough
+            sprintf( own.name, "%s%s", folder, TraitVoiceLines[ l ].file );
+            HANDLE file;
+            there = File_Open( own.name, &file, ONE_TRY ) ? 1 : -1;
+            if( there > 0 ) File_Close( file );
+            own.id = Sounds[ soundIndex ].id;
+            own.flag = Sounds[ soundIndex ].flag;
+        }
+        return there > 0 ? &own : nullptr;
+    }
+    return nullptr;
+}
+
+// A positional sound: the speaker is the hero standing on that cell (the local hero first), e.g. the hit grunt of
+// StartPlayerHit / a PvP hit, or the Slain Hero line said where the local hero stands.
+Sound* TraitVoiceOverrideAt( int soundIndex, int row, int col )
+{
+    for( int k = -1; k < PlayersMax_4; ++k ){
+        int i = k < 0 ? CurrentPlayerIndex : k;
+        if( (uint) i >= PlayersMax_4 || ( k >= 0 && i == CurrentPlayerIndex ) ) continue;
+        const Player& player = Players[ i ];
+        if( player.IsExists && player.dungeon == Dungeon && player.Row == row && player.Col == col ){
+            return TraitVoiceOverride( soundIndex, i );
+        }
+    }
+    return nullptr;
+}
+
+void TraitVoiceFree()
+{
+    for( auto& folder: TraitVoiceOwn ) for( Sound& own: folder ) FreeSoundData( own );
+}
