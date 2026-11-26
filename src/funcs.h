@@ -2817,6 +2817,10 @@ enum TraitVoiceLine { TVL_DUNGEON_ENTRY, TVL_BUTCHER_QUEST, TVL_BUTCHER_KILLED, 
 bool TraitVoiceQueue( int line, int delay, bool afterSpeech = false );
 void TraitVoiceUpdate();
 bool IsPistoleerLook( int playerIndex ); // (thmod) PISTOLEER LOOK (Player.cpp)
+// (thmod) PISTOLEER VOICE: the hero's own recording of a warrior line, by sound id (Traits.cpp; Engine.cpp PlayGlobalSound / PlayLocalSound)
+Sound* TraitVoiceOverride( int soundIndex, int playerIndex );
+Sound* TraitVoiceOverrideAt( int soundIndex, int row, int col );
+void TraitVoiceFree(); // (thmod) FreeAllSound
 
 // (thmod) SIEGEMASTER -- Guardian trait, single player only. Lesser Summon brings a Bombardier,
 // Common Summon a Trapper; both are monsters drawn from the PLAYER Bombardier / Trapper graphics
