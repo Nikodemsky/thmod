@@ -158,6 +158,7 @@ Currently on the scope:
 
 1. Visualization of debuffs
 2. Small changes - ubers in SP, custom rule for normal mode, Midas set
-3. Siegemaster
+3. Siegemaster // starting with custom sprites
+4. Custom sprites for pistoleer (including custom casting animations)
 
 \+ sometime in the future, update mod base along with newly provided source (for now latest is v.744).
